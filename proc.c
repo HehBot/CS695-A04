@@ -7,8 +7,10 @@
 #include "proc.h"
 #include "spinlock.h"
 
-pid_ns_t pid_nss[32];
-int pid_nss_free[32];
+static pid_ns_t* root_pid_ns;
+
+static pid_ns_t pid_nss[32];
+static int pid_nss_free[32];
 static pid_ns_t* get_pid_ns(pid_ns_t* parent)
 {
     for (int i = 0; i < 32; ++i)
@@ -191,6 +193,8 @@ userinit(void)
   p->pid[0] = (p->pid_ns->next_pid++);
   p->global_pid = p->pid[0];
 
+  root_pid_ns = p->pid_ns;
+
   release(&ptable.lock);
 }
 
@@ -234,7 +238,7 @@ fork(void)
   np->pid_ns = np->child_pid_ns = curproc->child_pid_ns;
 
   int entering_new_pid_ns = 0;
-  if (np->pid_ns->next_pid == 1) {
+  if (curproc->child_pid_ns != curproc->pid_ns) {
       // child will be init for its namespace
       entering_new_pid_ns = 1;
       np->pid_ns->initproc = np;
@@ -302,37 +306,49 @@ exit(void)
         panic("init exiting");
 
     acquire(&ptable.lock);
-
     for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
         if (p->state != UNUSED) {
             int i = namespace_depth(curproc->pid_ns, p->pid_ns);
             if (i == -1)
                 continue;
 
-            // FIXME some weird fuckery
+            if (p->pid[0] == 1)
+                free_pid_ns(p->pid_ns);
 
-            // for (fd = 0; fd < NOFILE; fd++) {
-            //     if (p->ofile[fd]) {
-            //         fileclose(p->ofile[fd]);
-            //         p->ofile[fd] = NULL;
-            //     }
-            // }
-            // begin_op();
-            // iput(p->cwd);
-            // end_op();
-            // p->cwd = NULL;
+            p->pid_ns = root_pid_ns;
+            p->parent = root_pid_ns->initproc;
+            p->state = ZOMBIE;
+            p->killed = 1;
+        }
+    }
+    // all have to be ZOMBIEfied before the lock is released as
+    // their pid_ns could potentially have been released
 
-            // kfree(p->kstack);
-            p->kstack = 0;
-            // freevm(p->pgdir);
-            p->parent = 0;
-            p->name[0] = 0;
-            p->killed = 0;
-            p->state = UNUSED;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->state == ZOMBIE) {
+            int i = namespace_depth(curproc->pid_ns, p->pid_ns);
+            if (i == -1)
+                continue;
+
+            release(&ptable.lock);
+            for (fd = 0; fd < NOFILE; fd++) {
+                if (p->ofile[fd]) {
+                    fileclose(p->ofile[fd]);
+                    p->ofile[fd] = NULL;
+                }
+            }
+            begin_op();
+            iput(p->cwd);
+            end_op();
+            p->cwd = NULL;
+            acquire(&ptable.lock);
+
+            wakeup1(root_pid_ns->initproc);
         }
     }
 
     sched();
+    panic("wtf");
   }
 
   // Close all open files.
@@ -396,6 +412,9 @@ wait(void)
         p->killed = 0;
         p->state = UNUSED;
         release(&ptable.lock);
+
+        cprintf("%d waited on %d\n", curproc->global_pid, p->global_pid);
+
         return pid;
       }
     }
@@ -630,7 +649,16 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->global_pid, state, p->name);
+    cprintf("%s %s ", state, p->name);
+
+    pid_ns_t* iter = p->pid_ns;
+    int i = 0;
+    while (iter != NULL) {
+        cprintf("%d[%p]->", p->pid[i], iter);
+        i++;
+        iter = iter->parent;
+    }
+
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)

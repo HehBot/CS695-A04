@@ -14,17 +14,29 @@ forktest(void)
         exit();
     int p = fork();
     if (p == 0) {
-        int child_pid = getpid();
-        printf(1, "hello from child, I see pid %d\n", child_pid);
-        sleep(10);
+        printf(1, "[1](%d)\n", getpid());
+        if (unshare(1) == -1)
+            exit();
+        int q = fork();
+        if (q == 0) {
+            printf(1, "[2](%d)\n", getpid());
+        } else
+            printf(1, "[3](%d)\n", q);
     } else {
-        printf(1, "hello from parent, child has pid %d\n", p);
+        printf(1, "[4](%d)\n", p);
+        int r = fork();
+        if (r == 0) {
+            printf(1, "[5](%d)\n", getpid());
+        } else
+            printf(1, "[6](%d)\n", r);
     }
 }
 
 int
 main(void)
 {
+  printf(1, "[0](%d)\n", getpid());
   forktest();
+  sleep(10000);
   exit();
 }
