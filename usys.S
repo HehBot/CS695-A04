@@ -40,3 +40,5 @@ SYSCALL(recv)
 SYSCALL(send)
 SYSCALL(recvfrom)
 SYSCALL(sendto)
+# namespaces
+SYSCALL(unshare)

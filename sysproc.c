@@ -39,7 +39,7 @@ sys_kill(void)
 int
 sys_getpid(void)
 {
-  return myproc()->pid;
+  return myproc()->pid[0];
 }
 
 int
@@ -88,4 +88,12 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+int sys_unshare(void)
+{
+  int arg;
+  if (argint(0, &arg) < 0)
+      return -1;
+  return unshare(arg);
 }

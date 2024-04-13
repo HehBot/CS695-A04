@@ -208,7 +208,10 @@ NET_UPROGS=\
 	_tcpechoserver\
 	_udpechoserver\
 
-UPROGS += $(NET_UPROGS)
+NS_UPROGS=\
+	_pid_ns_forktest\
+
+UPROGS += $(NET_UPROGS) $(NS_UPROGS)
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)

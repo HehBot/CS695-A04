@@ -34,13 +34,26 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+struct proc;
+
+typedef struct pid_ns {
+    struct pid_ns* parent;
+    int next_pid;
+    struct proc* initproc;
+} pid_ns_t;
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
-  int pid;                     // Process ID
+
+  pid_ns_t* pid_ns;
+  pid_ns_t* child_pid_ns;
+  int global_pid;
+  int pid[64];                 // Process IDs by namespace
+
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process

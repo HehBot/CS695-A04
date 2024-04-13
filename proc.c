@@ -7,14 +7,47 @@
 #include "proc.h"
 #include "spinlock.h"
 
+pid_ns_t pid_nss[32];
+int pid_nss_free[32];
+static pid_ns_t* get_pid_ns(pid_ns_t* parent)
+{
+    for (int i = 0; i < 32; ++i)
+        if (pid_nss_free[i]) {
+            pid_nss_free[i] = 0;
+            pid_nss[i].parent = parent;
+            pid_nss[i].next_pid = 1;
+            pid_nss[i].initproc = NULL;
+            return &pid_nss[i];
+        }
+    panic("get_pid_ns");
+}
+void free_pid_ns(pid_ns_t* p)
+{
+    int i = p - &pid_nss[0];
+    if (pid_nss_free[i])
+        panic("free_pid_ns");
+    pid_nss_free[i] = 1;
+}
+
+
+int namespace_depth(pid_ns_t* ancestor, pid_ns_t* curr)
+{
+    int i = 0;
+    while (curr != NULL) {
+        if (curr == ancestor)
+            return i;
+        i++;
+        curr = curr->parent;
+    }
+    return -1;
+}
+
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
 
-static struct proc *initproc;
-
-int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
 
@@ -23,6 +56,8 @@ static void wakeup1(void *chan);
 void
 pinit(void)
 {
+  for (int i = 0; i < 32; ++i)
+      pid_nss_free[i] = 1;
   initlock(&ptable.lock, "ptable");
 }
 
@@ -38,10 +73,10 @@ struct cpu*
 mycpu(void)
 {
   int apicid, i;
-  
+
   if(readeflags()&FL_IF)
     panic("mycpu called with interrupts enabled\n");
-  
+
   apicid = lapicid();
   // APIC IDs are not guaranteed to be contiguous. Maybe we should have
   // a reverse map, or reserve a register to store &cpus[i].
@@ -87,7 +122,7 @@ allocproc(void)
 
 found:
   p->state = EMBRYO;
-  p->pid = nextpid++;
+  // pids need to be set by caller
 
   release(&ptable.lock);
 
@@ -124,8 +159,7 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
-  
-  initproc = p;
+
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
@@ -149,6 +183,13 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+
+  // set up root pid ns
+  p->pid_ns = p->child_pid_ns = get_pid_ns(NULL);
+  p->pid_ns->initproc = p;
+
+  p->pid[0] = (p->pid_ns->next_pid++);
+  p->global_pid = p->pid[0];
 
   release(&ptable.lock);
 }
@@ -180,7 +221,7 @@ growproc(int n)
 int
 fork(void)
 {
-  int i, pid;
+  int pid;
   struct proc *np;
   struct proc *curproc = myproc();
 
@@ -188,6 +229,25 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
+
+  // Set pids
+  np->pid_ns = np->child_pid_ns = curproc->child_pid_ns;
+
+  int entering_new_pid_ns = 0;
+  if (np->pid_ns->next_pid == 1) {
+      // child will be init for its namespace
+      entering_new_pid_ns = 1;
+      np->pid_ns->initproc = np;
+  }
+
+  pid_ns_t* iter = np->pid_ns;
+  int i = 0;
+  while (iter != NULL) {
+    np->pid[i] = iter->next_pid++;
+    iter = iter->parent;
+    i++;
+  }
+  np->global_pid = np->pid[i-1];
 
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
@@ -197,20 +257,21 @@ fork(void)
     return -1;
   }
   np->sz = curproc->sz;
-  np->parent = curproc;
+  if (!entering_new_pid_ns)
+      np->parent = curproc;
+  else
+      np->parent = NULL;
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
-  for(i = 0; i < NOFILE; i++)
+  for(int i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
-
-  pid = np->pid;
 
   acquire(&ptable.lock);
 
@@ -218,7 +279,10 @@ fork(void)
 
   release(&ptable.lock);
 
-  return pid;
+  if (entering_new_pid_ns)
+      return np->pid[1];
+  else
+      return np->pid[0];
 }
 
 // Exit the current process.  Does not return.
@@ -231,21 +295,58 @@ exit(void)
   struct proc *p;
   int fd;
 
-  if(curproc == initproc)
-    panic("init exiting");
+  // init process of that namespace is exiting
+  if(curproc == curproc->pid_ns->initproc) {
+    // if root namespace, panic
+    if (curproc->pid_ns->parent == NULL)
+        panic("init exiting");
+
+    acquire(&ptable.lock);
+
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->state != UNUSED) {
+            int i = namespace_depth(curproc->pid_ns, p->pid_ns);
+            if (i == -1)
+                continue;
+
+            // FIXME some weird fuckery
+
+            // for (fd = 0; fd < NOFILE; fd++) {
+            //     if (p->ofile[fd]) {
+            //         fileclose(p->ofile[fd]);
+            //         p->ofile[fd] = NULL;
+            //     }
+            // }
+            // begin_op();
+            // iput(p->cwd);
+            // end_op();
+            // p->cwd = NULL;
+
+            // kfree(p->kstack);
+            p->kstack = 0;
+            // freevm(p->pgdir);
+            p->parent = 0;
+            p->name[0] = 0;
+            p->killed = 0;
+            p->state = UNUSED;
+        }
+    }
+
+    sched();
+  }
 
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){
       fileclose(curproc->ofile[fd]);
-      curproc->ofile[fd] = 0;
+      curproc->ofile[fd] = NULL;
     }
   }
 
   begin_op();
   iput(curproc->cwd);
   end_op();
-  curproc->cwd = 0;
+  curproc->cwd = NULL;
 
   acquire(&ptable.lock);
 
@@ -255,9 +356,9 @@ exit(void)
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == curproc){
-      p->parent = initproc;
+      p->parent = curproc->pid_ns->initproc;
       if(p->state == ZOMBIE)
-        wakeup1(initproc);
+        wakeup1(curproc->pid_ns->initproc);
     }
   }
 
@@ -275,7 +376,7 @@ wait(void)
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
-  
+
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
@@ -286,11 +387,10 @@ wait(void)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
-        pid = p->pid;
+        pid = p->pid[0];
         kfree(p->kstack);
         p->kstack = 0;
         freevm(p->pgdir);
-        p->pid = 0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
@@ -325,7 +425,7 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -418,7 +518,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  
+
   if(p == 0)
     panic("sleep");
 
@@ -480,16 +580,23 @@ int
 kill(int pid)
 {
   struct proc *p;
+  struct proc *curproc = myproc();
 
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->pid == pid){
-      p->killed = 1;
-      // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
-        p->state = RUNNABLE;
-      release(&ptable.lock);
-      return 0;
+    if (p->state != UNUSED) {
+        int i = namespace_depth(curproc->pid_ns, p->pid_ns);
+        if (i == -1)
+            continue;
+
+        if(p->pid[i] == pid){
+          p->killed = 1;
+          // Wake process from sleep if necessary.
+          if(p->state == SLEEPING)
+            p->state = RUNNABLE;
+          release(&ptable.lock);
+          return 0;
+        }
     }
   }
   release(&ptable.lock);
@@ -523,7 +630,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    cprintf("%d %s %s", p->global_pid, state, p->name);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -531,4 +638,15 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+#define NEWNS_PID (1<<0)
+#define NEWNS_NET (1<<1)
+
+int unshare(int arg)
+{
+    struct proc* curproc = myproc();
+    if (arg & NEWNS_PID)
+        curproc->child_pid_ns = get_pid_ns(curproc->pid_ns);
+    return 0;
 }

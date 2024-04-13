@@ -36,6 +36,8 @@ int send(int, char*, int);
 int recvfrom(int, char*, int, struct sockaddr*, int*);
 int sendto(int, char*, int, struct sockaddr*, int);
 
+int unshare(int);
+
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

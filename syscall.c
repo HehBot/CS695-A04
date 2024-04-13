@@ -115,6 +115,8 @@ extern int sys_send(void);
 extern int sys_recvfrom(void);
 extern int sys_sendto(void);
 
+extern int sys_unshare(void);
+
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
@@ -148,6 +150,8 @@ static int (*syscalls[])(void) = {
 [SYS_send]     sys_send,
 [SYS_recvfrom] sys_recvfrom,
 [SYS_sendto]   sys_sendto,
+
+[SYS_unshare]  sys_unshare,
 };
 
 void
@@ -161,7 +165,7 @@ syscall(void)
     curproc->tf->eax = syscalls[num]();
   } else {
     cprintf("%d %s: unknown sys call %d\n",
-            curproc->pid, curproc->name, num);
+            curproc->global_pid, curproc->name, num);
     curproc->tf->eax = -1;
   }
 }
