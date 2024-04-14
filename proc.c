@@ -6,12 +6,19 @@
 #include "types.h"
 #include "x86.h"
 
+struct {
+    struct spinlock lock;
+    struct proc proc[NPROC];
+} ptable;
+
 static pid_ns_t* root_pid_ns;
 
 static pid_ns_t pid_nss[32];
 static int pid_nss_free[32];
 static pid_ns_t* get_pid_ns(pid_ns_t* parent)
 {
+    if (!holding(&ptable.lock))
+        panic("get_pid_ns called without holding ptable.lock");
     for (int i = 0; i < 32; ++i)
         if (pid_nss_free[i]) {
             pid_nss_free[i] = 0;
@@ -24,6 +31,8 @@ static pid_ns_t* get_pid_ns(pid_ns_t* parent)
 }
 void free_pid_ns(pid_ns_t* p)
 {
+    if (!holding(&ptable.lock))
+        panic("free_pid_ns called without holding ptable.lock");
     int i = p - &pid_nss[0];
     if (pid_nss_free[i])
         panic("free_pid_ns");
@@ -41,11 +50,6 @@ int namespace_depth(pid_ns_t* ancestor, pid_ns_t* curr)
     }
     return -1;
 }
-
-struct {
-    struct spinlock lock;
-    struct proc proc[NPROC];
-} ptable;
 
 extern void forkret(void);
 extern void trapret(void);
@@ -294,12 +298,16 @@ int fork(void)
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
+//
+//   If an init process exits all the subprocesses
+//   are made ZOMBIEs and moved into global pid ns
+//   to be reaped by global init
 void exit(void)
 {
     struct proc* curproc = myproc();
     int fd;
 
-    // init process of that namespace is exiting
+    // init process of a namespace is exiting
     if (curproc == curproc->pid_ns->initproc) {
         // if root namespace, panic
         if (curproc->pid_ns->parent == NULL)
@@ -307,7 +315,7 @@ void exit(void)
 
         acquire(&ptable.lock);
         for (struct proc* p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-            if (p->state != UNUSED && p->state != ZOMBIE) {
+            if (p->state != UNUSED) {
                 int i = namespace_depth(curproc->pid_ns, p->pid_ns);
                 if (i == -1)
                     continue;
@@ -322,17 +330,11 @@ void exit(void)
                 p->killed = 2;
             }
         }
-        // all have to be ZOMBIEfied before the lock is released as
-        // their pid_ns could potentially have been released
+        // All have to be ZOMBIEfied before the lock is released as
+        // else their pid_ns could potentially have been freed
 
         for (struct proc* p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
             if (p->state == ZOMBIE && p->killed == 2) {
-                int i = namespace_depth(curproc->pid_ns, p->pid_ns);
-                if (i == -1)
-                    continue;
-
-                p->killed = 1;
-
                 release(&ptable.lock);
                 for (fd = 0; fd < NOFILE; fd++) {
                     if (p->ofile[fd]) {
@@ -341,9 +343,9 @@ void exit(void)
                     }
                 }
                 if (p->cwd != NULL) {
-                    // it's possible that a process was an EMBRYO
-                    // when it was ZOMBIEfied
-                    // in this case if p->cwd != NULL then its cwd is set up
+                    // It's possible that a process was an EMBRYO
+                    // when it was ZOMBIEfied due to ns deletion
+                    // In this case if p->cwd != NULL then its cwd is set up
                     // and the inode lock takes care of races
                     begin_op();
                     iput(p->cwd);
@@ -352,9 +354,14 @@ void exit(void)
                 }
                 acquire(&ptable.lock);
 
+                p->killed = 1;
+
                 wakeup1(root_pid_ns->initproc);
             }
         }
+
+        // FIXME multiprocessor
+        // sometimes curproc is RUNNING here instead of ZOMBIE
 
         sched();
     }
@@ -672,7 +679,10 @@ void procdump(void)
 int unshare(int arg)
 {
     struct proc* curproc = myproc();
-    if (arg & NEWNS_PID)
+    if (arg & NEWNS_PID) {
+        acquire(&ptable.lock);
         curproc->child_pid_ns = get_pid_ns(curproc->pid_ns);
+        release(&ptable.lock);
+    }
     return 0;
 }
