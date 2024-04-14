@@ -238,6 +238,7 @@ int fork(void)
         if (np->pid_ns->next_pid == 1) {
             // child will be init of new ns
             new_pid_ns_init = 1;
+            assert(np->pid_ns->initproc == NULL);
             np->pid_ns->initproc = np;
         }
     }
@@ -317,17 +318,19 @@ void exit(void)
                 p->pid_ns = root_pid_ns;
                 p->parent = root_pid_ns->initproc;
                 p->state = ZOMBIE;
-                p->killed = 1;
+                p->killed = 2;
             }
         }
         // all have to be ZOMBIEfied before the lock is released as
         // their pid_ns could potentially have been released
 
         for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-            if (p->state == ZOMBIE) {
+            if (p->state == ZOMBIE && p->killed == 2) {
                 int i = namespace_depth(curproc->pid_ns, p->pid_ns);
                 if (i == -1)
                     continue;
+
+                p->killed = 1;
 
                 release(&ptable.lock);
                 for (fd = 0; fd < NOFILE; fd++) {
@@ -347,7 +350,6 @@ void exit(void)
         }
 
         sched();
-        panic("wtf");
     }
 
     // Close all open files.
@@ -411,7 +413,7 @@ int wait(void)
                 p->state = UNUSED;
                 release(&ptable.lock);
 
-                // cprintf("%d waited on %d\n", curproc->global_pid, p->global_pid);
+                cprintf("%d waited on %d\n", curproc->global_pid, p->global_pid);
 
                 return pid;
             }

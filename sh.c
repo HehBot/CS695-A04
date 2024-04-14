@@ -131,11 +131,15 @@ void runcmd(struct cmd* cmd)
 
 int getcmd(char* buf, int nbuf)
 {
-    printf(2, "$ ");
-    memset(buf, 0, nbuf);
-    gets(buf, nbuf);
-    if (buf[0] == 0) // EOF
-        return -1;
+    while (1) {
+        memset(buf, 0, nbuf);
+        printf(2, "$ ");
+        gets(buf, nbuf);
+        if (buf[0] == 0) // EOF
+            return -1;
+        else if (buf[0] != '\n')
+            break;
+    }
     return 0;
 }
 

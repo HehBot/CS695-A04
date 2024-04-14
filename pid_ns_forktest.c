@@ -34,7 +34,7 @@ int main(void)
 {
     printf(1, "[0](%d)\n", getpid());
     forktest();
-    wait();
-    sleep(100);
+    // wait();
+    // sleep(10);
     exit();
 }
