@@ -108,6 +108,7 @@ extern int sys_recvfrom(void);
 extern int sys_sendto(void);
 
 extern int sys_unshare(void);
+extern int sys_getgpid(void);
 
 static int (*syscalls[])(void) = {
     [SYS_fork] = sys_fork,
@@ -144,6 +145,7 @@ static int (*syscalls[])(void) = {
     [SYS_sendto] = sys_sendto,
 
     [SYS_unshare] = sys_unshare,
+    [SYS_getgpid] = sys_getgpid,
 };
 
 void syscall(void)

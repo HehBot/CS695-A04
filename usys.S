@@ -42,3 +42,4 @@ SYSCALL(recvfrom)
 SYSCALL(sendto)
 # namespaces
 SYSCALL(unshare)
+SYSCALL(getgpid)

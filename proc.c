@@ -274,6 +274,7 @@ int fork(void)
     for (int i = 0; i < NOFILE; i++)
         if (curproc->ofile[i])
             np->ofile[i] = filedup(curproc->ofile[i]);
+    // cprintf("Setting cwd for %d\n", curproc->global_pid);
     np->cwd = idup(curproc->cwd);
 
     safestrcpy(np->name, curproc->name, sizeof(curproc->name));
@@ -296,7 +297,6 @@ int fork(void)
 void exit(void)
 {
     struct proc* curproc = myproc();
-    struct proc* p;
     int fd;
 
     // init process of that namespace is exiting
@@ -306,8 +306,8 @@ void exit(void)
             panic("init exiting");
 
         acquire(&ptable.lock);
-        for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-            if (p->state != UNUSED) {
+        for (struct proc* p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+            if (p->state != UNUSED && p->state != ZOMBIE) {
                 int i = namespace_depth(curproc->pid_ns, p->pid_ns);
                 if (i == -1)
                     continue;
@@ -316,6 +316,7 @@ void exit(void)
                     free_pid_ns(p->pid_ns);
 
                 p->pid_ns = root_pid_ns;
+                p->pid[0] = p->global_pid;
                 p->parent = root_pid_ns->initproc;
                 p->state = ZOMBIE;
                 p->killed = 2;
@@ -324,7 +325,7 @@ void exit(void)
         // all have to be ZOMBIEfied before the lock is released as
         // their pid_ns could potentially have been released
 
-        for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        for (struct proc* p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
             if (p->state == ZOMBIE && p->killed == 2) {
                 int i = namespace_depth(curproc->pid_ns, p->pid_ns);
                 if (i == -1)
@@ -339,10 +340,16 @@ void exit(void)
                         p->ofile[fd] = NULL;
                     }
                 }
-                begin_op();
-                iput(p->cwd);
-                end_op();
-                p->cwd = NULL;
+                if (p->cwd != NULL) {
+                    // it's possible that a process was an EMBRYO
+                    // when it was ZOMBIEfied
+                    // in this case if p->cwd != NULL then its cwd is set up
+                    // and the inode lock takes care of races
+                    begin_op();
+                    iput(p->cwd);
+                    end_op();
+                    p->cwd = NULL;
+                }
                 acquire(&ptable.lock);
 
                 wakeup1(root_pid_ns->initproc);
@@ -371,7 +378,7 @@ void exit(void)
     wakeup1(curproc->parent);
 
     // Pass abandoned children to init.
-    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    for (struct proc* p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
         if (p->parent == curproc) {
             p->parent = curproc->pid_ns->initproc;
             if (p->state == ZOMBIE)

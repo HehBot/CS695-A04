@@ -31,6 +31,10 @@ int sys_getpid(void)
 {
     return myproc()->pid[0];
 }
+int sys_getgpid(void)
+{
+    return myproc()->global_pid;
+}
 
 int sys_sbrk(void)
 {

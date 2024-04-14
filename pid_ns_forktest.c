@@ -6,35 +6,48 @@
 
 #define N 1000
 
-void forktest(void)
+void test(void)
 {
-    if (unshare(1) == -1)
-        exit();
-    int p = fork();
-    if (p == 0) {
-        printf(1, "[1](%d)\n", getpid());
-        if (unshare(1) == -1)
-            exit();
-        int q = fork();
-        if (q == 0) {
-            printf(1, "[2](%d)\n", getpid());
-        } else
-            printf(1, "[3](%d)\n", q);
+    printf(1, "(0<%d>%d)\n", getgpid(), getpid());
+    sleep(100);
+    unshare(1);
+
+    if (fork() == 0) {
+        printf(1, "(1<%d>%d)\n", getgpid(), getpid());
+        sleep(100);
+        unshare(1);
+
+        if (fork() == 0) {
+            printf(1, "(2<%d>%d)\n", getgpid(), getpid());
+            sleep(100);
+        }
     } else {
-        printf(1, "[4](%d)\n", p);
-        int r = fork();
-        if (r == 0) {
-            printf(1, "[5](%d)\n", getpid());
-        } else
-            printf(1, "[6](%d)\n", r);
+        if (fork() == 0) {
+            printf(1, "(3<%d>%d)\n", getgpid(), getpid());
+            sleep(100);
+        }
     }
 }
 
 int main(void)
 {
-    printf(1, "[0](%d)\n", getpid());
-    forktest();
-    // wait();
-    // sleep(10);
+    printf(1, "\n\n\ntest with wait\n\n");
+    if (fork() == 0) {
+        test();
+        while (wait() >= 0)
+            ;
+        exit();
+    }
+    wait();
+
+    sleep(500);
+
+    printf(1, "\n\n\ntest without wait\n\n");
+    if (fork() == 0) {
+        test();
+        exit();
+    }
+    wait();
+
     exit();
 }

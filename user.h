@@ -40,6 +40,7 @@ int recvfrom(int, char*, int, struct sockaddr*, int*);
 int sendto(int, char*, int, struct sockaddr*, int);
 
 int unshare(int);
+int getgpid(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

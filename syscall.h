@@ -36,5 +36,6 @@
 #define SYS_sendto 31
 
 #define SYS_unshare 32
+#define SYS_getgpid 33
 
 #endif // SYSCALL_H
