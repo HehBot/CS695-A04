@@ -231,12 +231,13 @@ int fork(void)
     // Set pids
     np->pid_ns = np->child_pid_ns = curproc->child_pid_ns;
 
-    int entering_new_pid_ns = 0;
+    int entering_new_pid_ns = 0, new_pid_ns_init = 0;
     if (np->pid_ns != curproc->pid_ns) {
         // child will be in a different pid ns to parent
         entering_new_pid_ns = 1;
         if (np->pid_ns->next_pid == 1) {
             // child will be init of new ns
+            new_pid_ns_init = 1;
             np->pid_ns->initproc = np;
         }
     }
@@ -260,8 +261,10 @@ int fork(void)
     np->sz = curproc->sz;
     if (!entering_new_pid_ns)
         np->parent = curproc;
-    else
+    else if (new_pid_ns_init)
         np->parent = NULL;
+    else
+        np->parent = np->pid_ns->initproc;
     *np->tf = *curproc->tf;
 
     // Clear %eax so that fork returns 0 in the child.

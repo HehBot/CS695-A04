@@ -1,5 +1,4 @@
-// Test that fork fails gracefully.
-// Tiny executable so that the limit can be filling the proc table.
+// Test that checks behaviour of fork and wait across pid namespaces
 
 #include "stat.h"
 #include "types.h"
@@ -35,6 +34,7 @@ int main(void)
 {
     printf(1, "[0](%d)\n", getpid());
     forktest();
-    sleep(10000);
+    wait();
+    sleep(100);
     exit();
 }
