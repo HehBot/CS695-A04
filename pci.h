@@ -1,13 +1,18 @@
-#ifndef JOS_KERN_PCI_H
-#define JOS_KERN_PCI_H
+#ifndef PCI_H
+#define PCI_H
+
+#include "types.h"
 
 // PCI subsystem interface
-enum { pci_res_bus, pci_res_mem, pci_res_io, pci_res_max };
+enum { pci_res_bus,
+       pci_res_mem,
+       pci_res_io,
+       pci_res_max };
 
 struct pci_bus;
 
 struct pci_func {
-    struct pci_bus *bus;	// Primary bus for bridges
+    struct pci_bus* bus; // Primary bus for bridges
 
     uint32_t dev;
     uint32_t func;
@@ -21,8 +26,8 @@ struct pci_func {
 };
 
 struct pci_bus {
-    struct pci_func *parent_bridge;
+    struct pci_func* parent_bridge;
     uint32_t busno;
 };
 
-#endif
+#endif // PCI_H

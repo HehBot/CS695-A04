@@ -1,14 +1,13 @@
 // Test that fork fails gracefully.
 // Tiny executable so that the limit can be filling the proc table.
 
-#include "types.h"
 #include "stat.h"
+#include "types.h"
 #include "user.h"
 
-#define N  1000
+#define N 1000
 
-void
-forktest(void)
+void forktest(void)
 {
     if (unshare(1) == -1)
         exit();
@@ -32,11 +31,10 @@ forktest(void)
     }
 }
 
-int
-main(void)
+int main(void)
 {
-  printf(1, "[0](%d)\n", getpid());
-  forktest();
-  sleep(10000);
-  exit();
+    printf(1, "[0](%d)\n", getpid());
+    forktest();
+    sleep(10000);
+    exit();
 }

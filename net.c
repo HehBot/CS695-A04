@@ -1,33 +1,31 @@
 // Copyright (c) 2012-2020 YAMAMOTO Masaya
 // SPDX-License-Identifier: MIT
 
-#include "types.h"
 #include "defs.h"
 #include "net.h"
-#include "ip.h"
 
 struct netproto {
-    struct netproto *next;
+    struct netproto* next;
     uint16_t type;
-    void (*handler)(uint8_t *packet, size_t plen, struct netdev *dev);
+    void (*handler)(uint8_t* packet, size_t plen, struct netdev* dev);
 };
 
-static struct netdev *devices;
-static struct netproto *protocols;
+static struct netdev* devices;
+static struct netproto* protocols;
 
-struct netdev *
+struct netdev*
 netdev_root(void)
 {
     return devices;
 }
 
-struct netdev *
-netdev_alloc(void (*setup)(struct netdev *))
+struct netdev*
+netdev_alloc(void (*setup)(struct netdev*))
 {
-    struct netdev *dev;
+    struct netdev* dev;
     static unsigned int index = 0;
 
-    dev = (struct netdev *)kalloc();
+    dev = (struct netdev*)kalloc();
     if (!dev) {
         return NULL;
     }
@@ -38,8 +36,7 @@ netdev_alloc(void (*setup)(struct netdev *))
     return dev;
 }
 
-int
-netdev_register(struct netdev *dev)
+int netdev_register(struct netdev* dev)
 {
     cprintf("[net] netdev_register: <%s>\n", dev->name);
     dev->next = devices;
@@ -47,10 +44,10 @@ netdev_register(struct netdev *dev)
     return 0;
 }
 
-struct netdev *
+struct netdev*
 netdev_by_index(int index)
 {
-    struct netdev *dev;
+    struct netdev* dev;
 
     for (dev = devices; dev; dev = dev->next)
         if (dev->index == index)
@@ -59,10 +56,10 @@ netdev_by_index(int index)
     return NULL;
 }
 
-struct netdev *
-netdev_by_name(const char *name)
+struct netdev*
+netdev_by_name(const char* name)
 {
-    struct netdev *dev;
+    struct netdev* dev;
 
     for (dev = devices; dev; dev = dev->next)
         if (strcmp(dev->name, name) == 0)
@@ -71,10 +68,9 @@ netdev_by_name(const char *name)
     return NULL;
 }
 
-void
-netdev_receive(struct netdev *dev, uint16_t type, uint8_t *packet, unsigned int plen)
+void netdev_receive(struct netdev* dev, uint16_t type, uint8_t* packet, unsigned int plen)
 {
-    struct netproto *entry;
+    struct netproto* entry;
 #ifdef DEBUG
     cprintf("[net] netdev_receive: dev=%s, type=%04x, packet=%p, plen=%u\n", dev->name, type, packet, plen);
 #endif
@@ -86,10 +82,9 @@ netdev_receive(struct netdev *dev, uint16_t type, uint8_t *packet, unsigned int 
     }
 }
 
-int
-netdev_add_netif(struct netdev *dev, struct netif *netif)
+int netdev_add_netif(struct netdev* dev, struct netif* netif)
 {
-    struct netif *entry;
+    struct netif* entry;
 
     for (entry = dev->ifs; entry; entry = entry->next) {
         if (entry->family == netif->family) {
@@ -99,19 +94,19 @@ netdev_add_netif(struct netdev *dev, struct netif *netif)
 #ifdef DEBUG
     if (netif->family == NETIF_FAMILY_IPV4) {
         char addr[IP_ADDR_STR_LEN];
-        cprintf("[net] Add <%s> to <%s>\n", ip_addr_ntop(&((struct netif_ip *)netif)->unicast, addr, sizeof(addr)), dev->name);
+        cprintf("[net] Add <%s> to <%s>\n", ip_addr_ntop(&((struct netif_ip*)netif)->unicast, addr, sizeof(addr)), dev->name);
     }
 #endif
     netif->next = dev->ifs;
-    netif->dev  = dev;
+    netif->dev = dev;
     dev->ifs = netif;
     return 0;
 }
 
-struct netif *
-netdev_get_netif(struct netdev *dev, int family)
+struct netif*
+netdev_get_netif(struct netdev* dev, int family)
 {
-    struct netif *entry;
+    struct netif* entry;
 
     for (entry = dev->ifs; entry; entry = entry->next) {
         if (entry->family == family) {
@@ -121,17 +116,16 @@ netdev_get_netif(struct netdev *dev, int family)
     return NULL;
 }
 
-int
-netproto_register(unsigned short type, void (*handler)(uint8_t *packet, size_t plen, struct netdev *dev))
+int netproto_register(unsigned short type, void (*handler)(uint8_t* packet, size_t plen, struct netdev* dev))
 {
-    struct netproto *entry;
+    struct netproto* entry;
 
     for (entry = protocols; entry; entry = entry->next) {
         if (entry->type == type) {
             return -1;
         }
     }
-    entry = (struct netproto *)kalloc();
+    entry = (struct netproto*)kalloc();
     if (!entry) {
         return -1;
     }
@@ -142,8 +136,7 @@ netproto_register(unsigned short type, void (*handler)(uint8_t *packet, size_t p
     return 0;
 }
 
-void
-netinit(void)
+void netinit(void)
 {
     arp_init();
     ip_init();

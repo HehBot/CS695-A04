@@ -1,19 +1,18 @@
 // Copyright (c) 2012-2020 YAMAMOTO Masaya
 // SPDX-License-Identifier: MIT
 
-#include "types.h"
 #include "defs.h"
-#include "net.h"
 #include "ethernet.h"
+#include "net.h"
+#include "types.h"
 
-const uint8_t ETHERNET_ADDR_ANY[ETHERNET_ADDR_LEN] = {"\x00\x00\x00\x00\x00\x00"};
-const uint8_t ETHERNET_ADDR_BROADCAST[ETHERNET_ADDR_LEN] = {"\xff\xff\xff\xff\xff\xff"};
+const uint8_t ETHERNET_ADDR_ANY[ETHERNET_ADDR_LEN] = { "\x00\x00\x00\x00\x00\x00" };
+const uint8_t ETHERNET_ADDR_BROADCAST[ETHERNET_ADDR_LEN] = { "\xff\xff\xff\xff\xff\xff" };
 
-int
-ethernet_addr_pton(const char *p, uint8_t *n)
+int ethernet_addr_pton(const char* p, uint8_t* n)
 {
     int index;
-    char *ep;
+    char* ep;
     long val;
 
     if (!p || !n) {
@@ -30,10 +29,10 @@ ethernet_addr_pton(const char *p, uint8_t *n)
     if (index != ETHERNET_ADDR_LEN || *ep != '\0') {
         return -1;
     }
-    return  0;
+    return 0;
 }
 
-static const char *
+static const char*
 ethernet_type_ntoa(uint16_t type)
 {
     switch (ntoh16(type)) {
@@ -47,8 +46,7 @@ ethernet_type_ntoa(uint16_t type)
     return "UNKNOWN";
 }
 
-char *
-ethernet_addr_ntop(const uint8_t *n, char *p, size_t size)
+char* ethernet_addr_ntop(const uint8_t* n, char* p, size_t size)
 {
     if (!n || !p) {
         return NULL;
@@ -58,12 +56,12 @@ ethernet_addr_ntop(const uint8_t *n, char *p, size_t size)
 }
 
 static void
-ethernet_dump(struct netdev *dev, uint8_t *frame, size_t flen)
+ethernet_dump(struct netdev* dev, uint8_t* frame, size_t flen)
 {
-    struct ethernet_hdr *hdr;
+    struct ethernet_hdr* hdr;
     char addr[ETHERNET_ADDR_STR_LEN];
 
-    hdr = (struct ethernet_hdr *)frame;
+    hdr = (struct ethernet_hdr*)frame;
     cprintf("  dev: %s (%s)\n", dev->name, ethernet_addr_ntop(dev->addr, addr, sizeof(addr)));
     cprintf("  src: %s\n", ethernet_addr_ntop(hdr->src, addr, sizeof(addr)));
     cprintf("  dst: %s\n", ethernet_addr_ntop(hdr->dst, addr, sizeof(addr)));
@@ -73,16 +71,16 @@ ethernet_dump(struct netdev *dev, uint8_t *frame, size_t flen)
 }
 
 ssize_t
-ethernet_rx_helper(struct netdev *dev, uint8_t *frame, size_t flen, void (*cb)(struct netdev*, uint16_t, uint8_t*, size_t))
+ethernet_rx_helper(struct netdev* dev, uint8_t* frame, size_t flen, void (*cb)(struct netdev*, uint16_t, uint8_t*, size_t))
 {
-    struct ethernet_hdr *hdr;
-    uint8_t *payload;
+    struct ethernet_hdr* hdr;
+    uint8_t* payload;
     size_t plen;
 
     if (flen < sizeof(struct ethernet_hdr)) {
         return -1;
     }
-    hdr = (struct ethernet_hdr *)frame;
+    hdr = (struct ethernet_hdr*)frame;
     if (memcmp(dev->addr, hdr->dst, ETHERNET_ADDR_LEN) != 0) {
         if (memcmp(ETHERNET_ADDR_BROADCAST, hdr->dst, ETHERNET_ADDR_LEN) != 0) {
             return -1;
@@ -92,24 +90,24 @@ ethernet_rx_helper(struct netdev *dev, uint8_t *frame, size_t flen, void (*cb)(s
     cprintf(">>> ethernet_rx <<<\n");
     ethernet_dump(dev, frame, flen);
 #endif
-    payload = (uint8_t *)(hdr + 1);
+    payload = (uint8_t*)(hdr + 1);
     plen = flen - sizeof(struct ethernet_hdr);
     cb(dev, hdr->type, payload, plen);
     return 0;
 }
 
 ssize_t
-ethernet_tx_helper(struct netdev *dev, uint16_t type, const uint8_t *payload, size_t plen, const void *dst, ssize_t (*cb)(struct netdev*, uint8_t*, size_t))
+ethernet_tx_helper(struct netdev* dev, uint16_t type, const uint8_t* payload, size_t plen, const void* dst, ssize_t (*cb)(struct netdev*, uint8_t*, size_t))
 {
     uint8_t frame[ETHERNET_FRAME_SIZE_MAX];
-    struct ethernet_hdr *hdr;
+    struct ethernet_hdr* hdr;
     size_t flen;
 
     if (!payload || plen > ETHERNET_PAYLOAD_SIZE_MAX || !dst) {
         return -1;
     }
     memset(frame, 0, sizeof(frame));
-    hdr = (struct ethernet_hdr *)frame;
+    hdr = (struct ethernet_hdr*)frame;
     memcpy(hdr->dst, dst, ETHERNET_ADDR_LEN);
     memcpy(hdr->src, dev->addr, ETHERNET_ADDR_LEN);
     hdr->type = hton16(type);
@@ -122,8 +120,7 @@ ethernet_tx_helper(struct netdev *dev, uint16_t type, const uint8_t *payload, si
     return cb(dev, frame, flen) == (ssize_t)flen ? (ssize_t)plen : -1;
 }
 
-void
-ethernet_netdev_setup(struct netdev *dev)
+void ethernet_netdev_setup(struct netdev* dev)
 {
     dev->type = NETDEV_TYPE_ETHERNET;
     dev->mtu = ETHERNET_PAYLOAD_SIZE_MAX;

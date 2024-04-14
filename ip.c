@@ -1,12 +1,12 @@
 // Copyright (c) 2012-2020 YAMAMOTO Masaya
 // SPDX-License-Identifier: MIT
 
-#include "types.h"
 #include "defs.h"
-#include "spinlock.h"
-#include "net.h"
 #include "ethernet.h"
 #include "ip.h"
+#include "net.h"
+#include "spinlock.h"
+#include "types.h"
 
 #define IP_VERSION_IPV4 4
 
@@ -17,13 +17,13 @@ struct ip_route {
     ip_addr_t network;
     ip_addr_t netmask;
     ip_addr_t nexthop;
-    struct netif *netif;
+    struct netif* netif;
 };
 
 struct ip_protocol {
-    struct ip_protocol *next;
+    struct ip_protocol* next;
     uint8_t type;
-    void (*handler)(uint8_t *payload, size_t len, ip_addr_t *src, ip_addr_t *dst, struct netif *netif);
+    void (*handler)(uint8_t* payload, size_t len, ip_addr_t* src, ip_addr_t* dst, struct netif* netif);
 };
 
 struct ip_hdr {
@@ -40,20 +40,20 @@ struct ip_hdr {
     uint8_t options[0];
 };
 
-const ip_addr_t IP_ADDR_ANY       = 0x00000000;
+const ip_addr_t IP_ADDR_ANY = 0x00000000;
 const ip_addr_t IP_ADDR_BROADCAST = 0xffffffff;
 
 static struct spinlock iplock;
 static struct ip_route route_table[IP_ROUTE_TABLE_SIZE];
-static struct ip_protocol *protocols;
+static struct ip_protocol* protocols;
 
-int
-ip_addr_pton (const char *p, ip_addr_t *n) {
+int ip_addr_pton(const char* p, ip_addr_t* n)
+{
     char *sp, *ep;
     int idx;
     long ret;
 
-    sp = (char *)p;
+    sp = (char*)p;
     for (idx = 0; idx < 4; idx++) {
         ret = strtol(sp, &ep, 10);
         if (ret < 0 || ret > 255) {
@@ -65,33 +65,33 @@ ip_addr_pton (const char *p, ip_addr_t *n) {
         if ((idx == 3 && *ep != '\0') || (idx != 3 && *ep != '.')) {
             return -1;
         }
-        ((uint8_t *)n)[idx] = ret;
+        ((uint8_t*)n)[idx] = ret;
         sp = ep + 1;
     }
     return 0;
 }
 
-char *
-ip_addr_ntop (const ip_addr_t *n, char *p, size_t size) {
-    uint8_t *ptr;
+char* ip_addr_ntop(const ip_addr_t* n, char* p, size_t size)
+{
+    uint8_t* ptr;
 
-    ptr = (uint8_t *)n;
+    ptr = (uint8_t*)n;
     snprintf(p, size, "%d.%d.%d.%d",
-        ptr[0], ptr[1], ptr[2], ptr[3]);
+             ptr[0], ptr[1], ptr[2], ptr[3]);
     return p;
 }
 
-void
-ip_dump (struct netif *netif, uint8_t *packet, size_t plen) {
-    struct netif_ip *iface;
+void ip_dump(struct netif* netif, uint8_t* packet, size_t plen)
+{
+    struct netif_ip* iface;
     char addr[IP_ADDR_STR_LEN];
-    struct ip_hdr *hdr;
+    struct ip_hdr* hdr;
     uint8_t hl;
     uint16_t offset;
 
-    iface = (struct netif_ip *)netif;
+    iface = (struct netif_ip*)netif;
     cprintf(" dev: %s (%s)\n", netif->dev->name, ip_addr_ntop(&iface->unicast, addr, sizeof(addr)));
-    hdr = (struct ip_hdr *)packet;
+    hdr = (struct ip_hdr*)packet;
     hl = hdr->vhl & 0x0f;
     cprintf("      vhl: %02x [v: %u, hl: %u (%u)]\n", hdr->vhl, (hdr->vhl & 0xf0) >> 4, hl, hl << 2);
     cprintf("      tos: %02x\n", hdr->tos);
@@ -112,8 +112,9 @@ ip_dump (struct netif *netif, uint8_t *packet, size_t plen) {
  */
 
 static int
-ip_route_add (ip_addr_t network, ip_addr_t netmask, ip_addr_t nexthop, struct netif *netif) {
-    struct ip_route *route;
+ip_route_add(ip_addr_t network, ip_addr_t netmask, ip_addr_t nexthop, struct netif* netif)
+{
+    struct ip_route* route;
 
     for (route = route_table; route < array_tailof(route_table); route++) {
         if (!route->used) {
@@ -129,8 +130,9 @@ ip_route_add (ip_addr_t network, ip_addr_t netmask, ip_addr_t nexthop, struct ne
 }
 
 static int
-ip_route_del (struct netif *netif) {
-    struct ip_route *route;
+ip_route_del(struct netif* netif)
+{
+    struct ip_route* route;
 
     for (route = route_table; route < array_tailof(route_table); route++) {
         if (route->used) {
@@ -142,8 +144,9 @@ ip_route_del (struct netif *netif) {
     return 0;
 }
 
-static struct ip_route *
-ip_route_lookup (const struct netif *netif, const ip_addr_t *dst) {
+static struct ip_route*
+ip_route_lookup(const struct netif* netif, const ip_addr_t* dst)
+{
     struct ip_route *route, *candidate = NULL;
 
     for (route = route_table; route < array_tailof(route_table); route++) {
@@ -160,38 +163,40 @@ ip_route_lookup (const struct netif *netif, const ip_addr_t *dst) {
  * IP INTERFACE
  */
 
-struct netif *
-ip_netif_alloc (ip_addr_t unicast, ip_addr_t netmask, ip_addr_t gateway) {
-    struct netif_ip *iface;
+struct netif*
+ip_netif_alloc(ip_addr_t unicast, ip_addr_t netmask, ip_addr_t gateway)
+{
+    struct netif_ip* iface;
     ip_addr_t gw;
 
-    iface = (struct netif_ip *)kalloc();
+    iface = (struct netif_ip*)kalloc();
     if (!iface) {
         return NULL;
     }
-    ((struct netif *)iface)->next = NULL;
-    ((struct netif *)iface)->family = NETIF_FAMILY_IPV4;
-    ((struct netif *)iface)->dev = NULL;
+    ((struct netif*)iface)->next = NULL;
+    ((struct netif*)iface)->family = NETIF_FAMILY_IPV4;
+    ((struct netif*)iface)->dev = NULL;
     iface->unicast = unicast;
     iface->netmask = netmask;
     iface->network = iface->unicast & iface->netmask;
     iface->broadcast = iface->network | ~iface->netmask;
-    if (ip_route_add(iface->network, iface->netmask, IP_ADDR_ANY, (struct netif *)iface) == -1) {
+    if (ip_route_add(iface->network, iface->netmask, IP_ADDR_ANY, (struct netif*)iface) == -1) {
         kfree((char*)iface);
         return NULL;
     }
     if (gateway) {
-        if (ip_route_add(IP_ADDR_ANY, IP_ADDR_ANY, gateway, (struct netif *)iface) == -1) {
+        if (ip_route_add(IP_ADDR_ANY, IP_ADDR_ANY, gateway, (struct netif*)iface) == -1) {
             kfree((char*)iface);
             return NULL;
         }
     }
-    return (struct netif *)iface;
+    return (struct netif*)iface;
 }
 
-struct netif *
-ip_netif_register (struct netdev *dev, const char *addr, const char *netmask, const char *gateway) {
-    struct netif *netif;
+struct netif*
+ip_netif_register(struct netdev* dev, const char* addr, const char* netmask, const char* gateway)
+{
+    struct netif* netif;
     ip_addr_t unicast, mask, gw = 0;
 
     if (ip_addr_pton(addr, &unicast) == -1) {
@@ -216,12 +221,12 @@ ip_netif_register (struct netdev *dev, const char *addr, const char *netmask, co
     return netif;
 }
 
-int
-ip_netif_reconfigure (struct netif *netif, ip_addr_t unicast, ip_addr_t netmask, ip_addr_t gateway) {
-    struct netif_ip *iface;
+int ip_netif_reconfigure(struct netif* netif, ip_addr_t unicast, ip_addr_t netmask, ip_addr_t gateway)
+{
+    struct netif_ip* iface;
     ip_addr_t gw;
 
-    iface = (struct netif_ip *)netif;
+    iface = (struct netif_ip*)netif;
     ip_route_del(netif);
     iface->unicast = unicast;
     iface->netmask = netmask;
@@ -238,14 +243,15 @@ ip_netif_reconfigure (struct netif *netif, ip_addr_t unicast, ip_addr_t netmask,
     return 0;
 }
 
-struct netif *
-ip_netif_by_addr (ip_addr_t *addr) {
-    struct netdev *dev;
-    struct netif *entry;
+struct netif*
+ip_netif_by_addr(ip_addr_t* addr)
+{
+    struct netdev* dev;
+    struct netif* entry;
 
     for (dev = netdev_root(); dev; dev = dev->next) {
         for (entry = dev->ifs; entry; entry = entry->next) {
-            if (entry->family == NETIF_FAMILY_IPV4 && ((struct netif_ip *)entry)->unicast == *addr) {
+            if (entry->family == NETIF_FAMILY_IPV4 && ((struct netif_ip*)entry)->unicast == *addr) {
                 return entry;
             }
         }
@@ -253,9 +259,10 @@ ip_netif_by_addr (ip_addr_t *addr) {
     return NULL;
 }
 
-struct netif *
-ip_netif_by_peer (ip_addr_t *peer) {
-    struct ip_route *route;
+struct netif*
+ip_netif_by_peer(ip_addr_t* peer)
+{
+    struct ip_route* route;
 
     route = ip_route_lookup(NULL, peer);
     if (!route) {
@@ -269,18 +276,19 @@ ip_netif_by_peer (ip_addr_t *peer) {
  */
 
 static void
-ip_rx (uint8_t *dgram, size_t dlen, struct netdev *dev) {
-    struct ip_hdr *hdr;
+ip_rx(uint8_t* dgram, size_t dlen, struct netdev* dev)
+{
+    struct ip_hdr* hdr;
     uint16_t hlen, offset;
-    struct netif_ip *iface;
-    uint8_t *payload;
+    struct netif_ip* iface;
+    uint8_t* payload;
     size_t plen;
-    struct ip_protocol *protocol;
+    struct ip_protocol* protocol;
 
     if (dlen < sizeof(struct ip_hdr)) {
         return;
     }
-    hdr = (struct ip_hdr *)dgram;
+    hdr = (struct ip_hdr*)dgram;
     if ((hdr->vhl >> 4) != IP_VERSION_IPV4) {
         cprintf("not ipv4 packet.\n");
         return;
@@ -290,7 +298,7 @@ ip_rx (uint8_t *dgram, size_t dlen, struct netdev *dev) {
         cprintf("ip packet length error.\n");
         return;
     }
-    if (cksum16((uint16_t *)hdr, hlen, 0) != 0) {
+    if (cksum16((uint16_t*)hdr, hlen, 0) != 0) {
         cprintf("ip checksum error.\n");
         return;
     }
@@ -298,7 +306,7 @@ ip_rx (uint8_t *dgram, size_t dlen, struct netdev *dev) {
         cprintf("ip packet was dead (TTL=0).\n");
         return;
     }
-    iface = (struct netif_ip *)netdev_get_netif(dev, NETIF_FAMILY_IPV4);
+    iface = (struct netif_ip*)netdev_get_netif(dev, NETIF_FAMILY_IPV4);
     if (!iface) {
         cprintf("ip unknown interface.\n");
         return;
@@ -311,9 +319,9 @@ ip_rx (uint8_t *dgram, size_t dlen, struct netdev *dev) {
     }
 #ifdef DEBUG
     cprintf(">>> ip_rx <<<\n");
-    ip_dump((struct netif *)iface, dgram, dlen);
+    ip_dump((struct netif*)iface, dgram, dlen);
 #endif
-    payload = (uint8_t *)hdr + hlen;
+    payload = (uint8_t*)hdr + hlen;
     plen = ntoh16(hdr->len) - hlen;
     offset = ntoh16(hdr->offset);
     if (offset & 0x2000 || offset & 0x1fff) {
@@ -323,20 +331,21 @@ ip_rx (uint8_t *dgram, size_t dlen, struct netdev *dev) {
     }
     for (protocol = protocols; protocol; protocol = protocol->next) {
         if (protocol->type == hdr->protocol) {
-            protocol->handler(payload, plen, &hdr->src, &hdr->dst, (struct netif *)iface);
+            protocol->handler(payload, plen, &hdr->src, &hdr->dst, (struct netif*)iface);
             break;
         }
     }
 }
 
 static int
-ip_tx_netdev (struct netif *netif, uint8_t *packet, size_t plen, const ip_addr_t *dst) {
+ip_tx_netdev(struct netif* netif, uint8_t* packet, size_t plen, const ip_addr_t* dst)
+{
     uint8_t ha[128] = {};
     ssize_t ret;
 
     if (!(netif->dev->flags & NETDEV_FLAG_NOARP)) {
         if (dst) {
-            ret = arp_resolve(netif, dst, (void *)ha, packet, plen);
+            ret = arp_resolve(netif, dst, (void*)ha, packet, plen);
             if (ret != 1) {
                 return ret;
             }
@@ -344,19 +353,20 @@ ip_tx_netdev (struct netif *netif, uint8_t *packet, size_t plen, const ip_addr_t
             memcpy(ha, netif->dev->broadcast, netif->dev->alen);
         }
     }
-    if (netif->dev->ops->xmit(netif->dev, ETHERNET_TYPE_IP, packet, plen, (void *)ha) != (ssize_t)plen) {
+    if (netif->dev->ops->xmit(netif->dev, ETHERNET_TYPE_IP, packet, plen, (void*)ha) != (ssize_t)plen) {
         return -1;
     }
     return 1;
 }
 
 static int
-ip_tx_core (struct netif *netif, uint8_t protocol, const uint8_t *buf, size_t len, const ip_addr_t *src, const ip_addr_t *dst, const ip_addr_t *nexthop, uint16_t id, uint16_t offset) {
+ip_tx_core(struct netif* netif, uint8_t protocol, const uint8_t* buf, size_t len, const ip_addr_t* src, const ip_addr_t* dst, const ip_addr_t* nexthop, uint16_t id, uint16_t offset)
+{
     uint8_t packet[4096];
-    struct ip_hdr *hdr;
+    struct ip_hdr* hdr;
     uint16_t hlen;
 
-    hdr = (struct ip_hdr *)packet;
+    hdr = (struct ip_hdr*)packet;
     hlen = sizeof(struct ip_hdr);
     hdr->vhl = (IP_VERSION_IPV4 << 4) | (hlen >> 2);
     hdr->tos = 0;
@@ -366,19 +376,20 @@ ip_tx_core (struct netif *netif, uint8_t protocol, const uint8_t *buf, size_t le
     hdr->ttl = 0xff;
     hdr->protocol = protocol;
     hdr->sum = 0;
-    hdr->src = src ? *src : ((struct netif_ip *)netif)->unicast;
+    hdr->src = src ? *src : ((struct netif_ip*)netif)->unicast;
     hdr->dst = *dst;
-    hdr->sum = cksum16((uint16_t *)hdr, hlen, 0);
+    hdr->sum = cksum16((uint16_t*)hdr, hlen, 0);
     memcpy(hdr + 1, buf, len);
 #ifdef DEBUG
     cprintf(">>> ip_tx_core <<<\n");
-    ip_dump(netif, (uint8_t *)packet, hlen + len);
+    ip_dump(netif, (uint8_t*)packet, hlen + len);
 #endif
-    return ip_tx_netdev(netif, (uint8_t *)packet, hlen + len, nexthop);
+    return ip_tx_netdev(netif, (uint8_t*)packet, hlen + len, nexthop);
 }
 
 static uint16_t
-ip_generate_id (void) {
+ip_generate_id(void)
+{
     static uint16_t id = 128;
     uint16_t ret;
 
@@ -389,8 +400,9 @@ ip_generate_id (void) {
 }
 
 ssize_t
-ip_tx (struct netif *netif, uint8_t protocol, const uint8_t *buf, size_t len, const ip_addr_t *dst) {
-    struct ip_route *route;
+ip_tx(struct netif* netif, uint8_t protocol, const uint8_t* buf, size_t len, const ip_addr_t* dst)
+{
+    struct ip_route* route;
     ip_addr_t *nexthop = NULL, *src = NULL;
     uint16_t id, flag, offset;
     size_t done, slen;
@@ -404,10 +416,10 @@ ip_tx (struct netif *netif, uint8_t protocol, const uint8_t *buf, size_t len, co
             return -1;
         }
         if (netif) {
-            src = &((struct netif_ip *)netif)->unicast;
+            src = &((struct netif_ip*)netif)->unicast;
         }
         netif = route->netif;
-        nexthop = (ip_addr_t *)(route->nexthop ? &route->nexthop : dst);
+        nexthop = (ip_addr_t*)(route->nexthop ? &route->nexthop : dst);
     }
     id = ip_generate_id();
     for (done = 0; done < len; done += slen) {
@@ -421,11 +433,11 @@ ip_tx (struct netif *netif, uint8_t protocol, const uint8_t *buf, size_t len, co
     return len;
 }
 
-int
-ip_add_protocol (uint8_t type, void (*handler)(uint8_t *payload, size_t len, ip_addr_t *src, ip_addr_t *dst, struct netif *netif)) {
-    struct ip_protocol *p;
+int ip_add_protocol(uint8_t type, void (*handler)(uint8_t* payload, size_t len, ip_addr_t* src, ip_addr_t* dst, struct netif* netif))
+{
+    struct ip_protocol* p;
 
-    p = (struct ip_protocol *)kalloc();
+    p = (struct ip_protocol*)kalloc();
     if (!p) {
         return -1;
     }
@@ -436,8 +448,8 @@ ip_add_protocol (uint8_t type, void (*handler)(uint8_t *payload, size_t len, ip_
     return 0;
 }
 
-int
-ip_init (void) {
+int ip_init(void)
+{
     initlock(&iplock, "ip");
     netproto_register(NETPROTO_TYPE_IP, ip_rx);
     return 0;

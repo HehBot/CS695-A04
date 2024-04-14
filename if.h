@@ -1,3 +1,6 @@
+#ifndef IF_H
+#define IF_H
+
 /*	$NetBSD: if.h,v 1.282 2020/02/14 22:04:12 thorpej Exp $	*/
 
 /*-
@@ -60,19 +63,21 @@
  *	@(#)if.h	8.3 (Berkeley) 2/9/95
  */
 
-#define	IFF_UP		0x0001		/* interface is up */
-#define	IFF_BROADCAST	0x0002		/* broadcast address valid */
-#define	IFF_DEBUG	0x0004		/* turn on debugging */
-#define	IFF_LOOPBACK	0x0008		/* is a loopback net */
-#define	IFF_POINTOPOINT	0x0010		/* interface is point-to-point link */
+#define IFF_UP 0x0001 /* interface is up */
+#define IFF_BROADCAST 0x0002 /* broadcast address valid */
+#define IFF_DEBUG 0x0004 /* turn on debugging */
+#define IFF_LOOPBACK 0x0008 /* is a loopback net */
+#define IFF_POINTOPOINT 0x0010 /* interface is point-to-point link */
 /*			0x0020		   was IFF_NOTRAILERS */
-#define	IFF_RUNNING	0x0040		/* resources allocated */
-#define	IFF_NOARP	0x0080		/* no address resolution protocol */
-#define	IFF_PROMISC	0x0100		/* receive all packets */
-#define	IFF_ALLMULTI	0x0200		/* receive all multicast packets */
-#define	IFF_OACTIVE	0x0400		/* transmission in progress */
-#define	IFF_SIMPLEX	0x0800		/* can't hear own transmissions */
-#define	IFF_LINK0	0x1000		/* per link layer defined bit */
-#define	IFF_LINK1	0x2000		/* per link layer defined bit */
-#define	IFF_LINK2	0x4000		/* per link layer defined bit */
-#define	IFF_MULTICAST	0x8000		/* supports multicast */
+#define IFF_RUNNING 0x0040 /* resources allocated */
+#define IFF_NOARP 0x0080 /* no address resolution protocol */
+#define IFF_PROMISC 0x0100 /* receive all packets */
+#define IFF_ALLMULTI 0x0200 /* receive all multicast packets */
+#define IFF_OACTIVE 0x0400 /* transmission in progress */
+#define IFF_SIMPLEX 0x0800 /* can't hear own transmissions */
+#define IFF_LINK0 0x1000 /* per link layer defined bit */
+#define IFF_LINK1 0x2000 /* per link layer defined bit */
+#define IFF_LINK2 0x4000 /* per link layer defined bit */
+#define IFF_MULTICAST 0x8000 /* supports multicast */
+
+#endif // IF_H

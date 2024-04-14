@@ -1,3 +1,8 @@
+#ifndef IP_H
+#define IP_H
+
+#include "net.h"
+
 #define IP_HDR_SIZE_MIN 20
 #define IP_HDR_SIZE_MAX 60
 #define IP_PAYLOAD_SIZE_MAX (65535 - IP_HDR_SIZE_MIN)
@@ -6,9 +11,9 @@
 #define IP_ADDR_STR_LEN 16 /* "ddd.ddd.ddd.ddd\0" */
 
 #define IP_PROTOCOL_ICMP 0x01
-#define IP_PROTOCOL_TCP  0x06
-#define IP_PROTOCOL_UDP  0x11
-#define IP_PROTOCOL_RAW  0xff
+#define IP_PROTOCOL_TCP 0x06
+#define IP_PROTOCOL_UDP 0x11
+#define IP_PROTOCOL_RAW 0xff
 
 struct netif_ip {
     struct netif netif;
@@ -18,3 +23,5 @@ struct netif_ip {
     ip_addr_t broadcast;
     ip_addr_t gateway;
 };
+
+#endif // IP_H

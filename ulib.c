@@ -1,171 +1,166 @@
-#include "types.h"
-#include "stat.h"
 #include "fcntl.h"
+#include "stat.h"
+#include "types.h"
 #include "user.h"
 #include "x86.h"
 
-char*
-strcpy(char *s, const char *t)
+char* strcpy(char* s, const char* t)
 {
-  char *os;
+    char* os;
 
-  os = s;
-  while((*s++ = *t++) != 0)
-    ;
-  return os;
+    os = s;
+    while ((*s++ = *t++) != 0)
+        ;
+    return os;
 }
 
-int
-strcmp(const char *p, const char *q)
+int strcmp(const char* p, const char* q)
 {
-  while(*p && *p == *q)
-    p++, q++;
-  return (uchar)*p - (uchar)*q;
+    while (*p && *p == *q)
+        p++, q++;
+    return (uchar)*p - (uchar)*q;
 }
 
-uint
-strlen(const char *s)
+uint strlen(const char* s)
 {
-  int n;
+    int n;
 
-  for(n = 0; s[n]; n++)
-    ;
-  return n;
+    for (n = 0; s[n]; n++)
+        ;
+    return n;
 }
 
-void*
-memset(void *dst, int c, uint n)
+void* memset(void* dst, int c, uint n)
 {
-  stosb(dst, c, n);
-  return dst;
+    stosb(dst, c, n);
+    return dst;
 }
 
-char*
-strchr(const char *s, char c)
+char* strchr(const char* s, char c)
 {
-  for(; *s; s++)
-    if(*s == c)
-      return (char*)s;
-  return 0;
+    for (; *s; s++)
+        if (*s == c)
+            return (char*)s;
+    return 0;
 }
 
-char*
-gets(char *buf, int max)
+char* gets(char* buf, int max)
 {
-  int i, cc;
-  char c;
+    int i, cc;
+    char c;
 
-  for(i=0; i+1 < max; ){
-    cc = read(0, &c, 1);
-    if(cc < 1)
-      break;
-    buf[i++] = c;
-    if(c == '\n' || c == '\r')
-      break;
-  }
-  buf[i] = '\0';
-  return buf;
+    for (i = 0; i + 1 < max;) {
+        cc = read(0, &c, 1);
+        if (cc < 1)
+            break;
+        buf[i++] = c;
+        if (c == '\n' || c == '\r')
+            break;
+    }
+    buf[i] = '\0';
+    return buf;
 }
 
-int
-stat(const char *n, struct stat *st)
+int stat(const char* n, struct stat* st)
 {
-  int fd;
-  int r;
+    int fd;
+    int r;
 
-  fd = open(n, O_RDONLY);
-  if(fd < 0)
-    return -1;
-  r = fstat(fd, st);
-  close(fd);
-  return r;
+    fd = open(n, O_RDONLY);
+    if (fd < 0)
+        return -1;
+    r = fstat(fd, st);
+    close(fd);
+    return r;
 }
 
-int
-atoi(const char *s)
+int atoi(const char* s)
 {
-  int n;
+    int n;
 
-  n = 0;
-  while('0' <= *s && *s <= '9')
-    n = n*10 + *s++ - '0';
-  return n;
+    n = 0;
+    while ('0' <= *s && *s <= '9')
+        n = n * 10 + *s++ - '0';
+    return n;
 }
 
-void*
-memmove(void *vdst, const void *vsrc, int n)
+void* memmove(void* vdst, const void* vsrc, int n)
 {
-  char *dst;
-  const char *src;
+    char* dst;
+    const char* src;
 
-  dst = vdst;
-  src = vsrc;
-  while(n-- > 0)
-    *dst++ = *src++;
-  return vdst;
+    dst = vdst;
+    src = vsrc;
+    while (n-- > 0)
+        *dst++ = *src++;
+    return vdst;
 }
 
 #define isascii(x) ((x >= 0x00) && (x <= 0x7f))
 #define isprint(x) ((x >= 0x20) && (x <= 0x7e))
 
-void
-hexdump (void *data, size_t size) {
-  int offset, index;
-  unsigned char *src;
+void hexdump(void* data, size_t size)
+{
+    int offset, index;
+    unsigned char* src;
 
-  src = (unsigned char *)data;
-  printf(1, "+------+-------------------------------------------------+------------------+\n");
-  for (offset = 0; offset < size; offset += 16) {
-    printf(1, "| ");
-    if (offset <= 0x0fff) printf(1, "0");
-    if (offset <= 0x00ff) printf(1, "0");
-    if (offset <= 0x000f) printf(1, "0");
-    printf(1, "%x | ", offset);
-    for (index = 0; index < 16; index++) {
-      if(offset + index < (int)size) {
-        if (src[offset + index] <= 0x0f) printf(1, "0");
-        printf(1, "%x ", 0xff & src[offset + index]);
-      } else {
-        printf(1, "   ");
-      }
-    }
-    printf(1, "| ");
-    for(index = 0; index < 16; index++) {
-      if(offset + index < (int)size) {
-        if(isascii(src[offset + index]) && isprint(src[offset + index])) {
-          printf(1, "%c", src[offset + index]);
-        } else {
-          printf(1, ".");
+    src = (unsigned char*)data;
+    printf(1, "+------+-------------------------------------------------+------------------+\n");
+    for (offset = 0; offset < size; offset += 16) {
+        printf(1, "| ");
+        if (offset <= 0x0fff)
+            printf(1, "0");
+        if (offset <= 0x00ff)
+            printf(1, "0");
+        if (offset <= 0x000f)
+            printf(1, "0");
+        printf(1, "%x | ", offset);
+        for (index = 0; index < 16; index++) {
+            if (offset + index < (int)size) {
+                if (src[offset + index] <= 0x0f)
+                    printf(1, "0");
+                printf(1, "%x ", 0xff & src[offset + index]);
+            } else {
+                printf(1, "   ");
+            }
         }
-      } else {
-        printf(1, " ");
-      }
+        printf(1, "| ");
+        for (index = 0; index < 16; index++) {
+            if (offset + index < (int)size) {
+                if (isascii(src[offset + index]) && isprint(src[offset + index])) {
+                    printf(1, "%c", src[offset + index]);
+                } else {
+                    printf(1, ".");
+                }
+            } else {
+                printf(1, " ");
+            }
+        }
+        printf(1, " |\n");
     }
-    printf(1, " |\n");
-  }
-  printf(1, "+------+-------------------------------------------------+------------------+\n");
+    printf(1, "+------+-------------------------------------------------+------------------+\n");
 }
 
 #ifndef __BIG_ENDIAN
-#define __BIG_ENDIAN 4321
+    #define __BIG_ENDIAN 4321
 #endif
 #ifndef __LITTLE_ENDIAN
-#define __LITTLE_ENDIAN 1234
+    #define __LITTLE_ENDIAN 1234
 #endif
 
 static int endian;
 
 static int
-byteorder (void)
+byteorder(void)
 {
     uint32_t x = 0x00000001;
-    return *(uint8_t *)&x ? __LITTLE_ENDIAN : __BIG_ENDIAN;
+    return *(uint8_t*)&x ? __LITTLE_ENDIAN : __BIG_ENDIAN;
 }
 
 static uint16_t
 byteswap16(uint16_t v)
 {
-    return (v & 0x00ff) << 8 | (v & 0xff00 ) >> 8;
+    return (v & 0x00ff) << 8 | (v & 0xff00) >> 8;
 }
 
 static uint32_t
@@ -175,7 +170,7 @@ byteswap32(uint32_t v)
 }
 
 uint16_t
-hton16 (uint16_t h)
+hton16(uint16_t h)
 {
     if (!endian)
         endian = byteorder();
@@ -183,7 +178,7 @@ hton16 (uint16_t h)
 }
 
 uint16_t
-ntoh16 (uint16_t n)
+ntoh16(uint16_t n)
 {
     if (!endian)
         endian = byteorder();
@@ -206,8 +201,7 @@ ntoh32(uint32_t n)
     return endian == __LITTLE_ENDIAN ? byteswap32(n) : n;
 }
 
-long
-strtol(const char *s, char **endptr, int base)
+long strtol(const char* s, char** endptr, int base)
 {
     int neg = 0;
     long val = 0;
@@ -249,17 +243,17 @@ strtol(const char *s, char **endptr, int base)
     }
 
     if (endptr)
-        *endptr = (char *) s;
+        *endptr = (char*)s;
     return (neg ? -val : val);
 }
 
-int
-ip_addr_pton (const char *p, ip_addr_t *n) {
+int ip_addr_pton(const char* p, ip_addr_t* n)
+{
     char *sp, *ep;
     int idx;
     long ret;
 
-    sp = (char *)p;
+    sp = (char*)p;
     for (idx = 0; idx < 4; idx++) {
         ret = strtol(sp, &ep, 10);
         if (ret < 0 || ret > 255) {
@@ -271,7 +265,7 @@ ip_addr_pton (const char *p, ip_addr_t *n) {
         if ((idx == 3 && *ep != '\0') || (idx != 3 && *ep != '.')) {
             return -1;
         }
-        ((uint8_t *)n)[idx] = ret;
+        ((uint8_t*)n)[idx] = ret;
         sp = ep + 1;
     }
     return 0;

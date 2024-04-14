@@ -1,3 +1,6 @@
+#ifndef USER_H
+#define USER_H
+
 struct stat;
 struct rtcdate;
 struct sockaddr;
@@ -41,7 +44,7 @@ int unshare(int);
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
-void *memmove(void*, const void*, int);
+void* memmove(void*, const void*, int);
 char* strchr(const char*, char c);
 int strcmp(const char*, const char*);
 void printf(int, const char*, ...);
@@ -52,13 +55,15 @@ void* malloc(uint);
 void free(void*);
 int atoi(const char*);
 // additional functions
-void hexdump(void *data, size_t size);
+void hexdump(void* data, size_t size);
 uint16_t hton16(uint16_t h);
 uint16_t ntoh16(uint16_t n);
 uint32_t hton32(uint32_t h);
 uint32_t ntoh32(uint32_t n);
-long strtol(const char *s, char **endptr, int base);
-int ip_addr_pton(const char *p, ip_addr_t *n);
+long strtol(const char* s, char** endptr, int base);
+int ip_addr_pton(const char* p, ip_addr_t* n);
 
 #define IP_ADDR_LEN 4
 #define IP_ADDR_STR_LEN 16 /* "ddd.ddd.ddd.ddd\0" */
+
+#endif // USER_H

@@ -1,3 +1,6 @@
+#ifndef ICMP_H
+#define ICMP_H
+
 #define ICMP_TYPE_ECHOREPLY 0
 #define ICMP_TYPE_DEST_UNREACH 3
 #define ICMP_TYPE_SOURCE_QUENCH 4
@@ -29,3 +32,5 @@
 #define ICMP_CODE_EXCEEDED_FRAGMENT 1
 
 #define ICMP_COPY_LEN(x) ((((x)->vhl & 0x0f) << 2) + 8)
+
+#endif // ICMP_H

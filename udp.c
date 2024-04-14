@@ -1,13 +1,13 @@
 // Copyright (c) 2012-2020 YAMAMOTO Masaya
 // SPDX-License-Identifier: MIT
 
-#include "types.h"
-#include "defs.h"
-#include "spinlock.h"
 #include "common.h"
-#include "net.h"
+#include "defs.h"
 #include "ip.h"
+#include "net.h"
 #include "socket.h"
+#include "spinlock.h"
+#include "types.h"
 
 #define UDP_CB_TABLE_SIZE 16
 #define UDP_SOURCE_PORT_MIN 49152
@@ -29,7 +29,7 @@ struct udp_queue_hdr {
 
 struct udp_cb {
     int used;
-    struct netif *iface;
+    struct netif* iface;
     uint16_t port;
     struct queue_head queue;
 };
@@ -37,15 +37,15 @@ struct udp_cb {
 static struct spinlock udplock;
 static struct udp_cb cb_table[UDP_CB_TABLE_SIZE];
 
-void
-udp_dump (struct netif *netif, uint8_t *packet, size_t plen) {
-    struct netif_ip *iface;
-    struct udp_hdr *hdr;
+void udp_dump(struct netif* netif, uint8_t* packet, size_t plen)
+{
+    struct netif_ip* iface;
+    struct udp_hdr* hdr;
     char addr[IP_ADDR_STR_LEN];
 
-    iface = (struct netif_ip *)netif;
+    iface = (struct netif_ip*)netif;
     cprintf("   dev: %s (%s)\n", netif->dev->name, ip_addr_ntop(&iface->unicast, addr, sizeof(addr)));
-    hdr = (struct udp_hdr *)packet;
+    hdr = (struct udp_hdr*)packet;
     cprintf(" sport: %u\n", ntoh16(hdr->sport));
     cprintf(" dport: %u\n", ntoh16(hdr->dport));
     cprintf("   len: %u\n", ntoh16(hdr->len));
@@ -54,58 +54,60 @@ udp_dump (struct netif *netif, uint8_t *packet, size_t plen) {
 }
 
 static ssize_t
-udp_tx (struct netif *iface, uint16_t sport, uint8_t *buf, size_t len, ip_addr_t *peer, uint16_t port) {
+udp_tx(struct netif* iface, uint16_t sport, uint8_t* buf, size_t len, ip_addr_t* peer, uint16_t port)
+{
     char packet[65536];
-    struct udp_hdr *hdr;
+    struct udp_hdr* hdr;
     ip_addr_t self;
     uint32_t pseudo = 0;
 
-    hdr = (struct udp_hdr *)packet;
+    hdr = (struct udp_hdr*)packet;
     hdr->sport = sport;
     hdr->dport = port;
     hdr->len = hton16(sizeof(struct udp_hdr) + len);
     hdr->sum = 0;
     memcpy(hdr + 1, buf, len);
-    self = ((struct netif_ip *)iface)->unicast;
+    self = ((struct netif_ip*)iface)->unicast;
     pseudo += (self >> 16) & 0xffff;
     pseudo += self & 0xffff;
     pseudo += (*peer >> 16) & 0xffff;
     pseudo += *peer & 0xffff;
     pseudo += hton16((uint16_t)IP_PROTOCOL_UDP);
     pseudo += hton16(sizeof(struct udp_hdr) + len);
-    hdr->sum = cksum16((uint16_t *)hdr, sizeof(struct udp_hdr) + len, pseudo);
+    hdr->sum = cksum16((uint16_t*)hdr, sizeof(struct udp_hdr) + len, pseudo);
 #ifdef DEBUG
     cprintf(">>> udp_tx <<<\n");
-    udp_dump((struct netif *)iface, (uint8_t *)packet, sizeof(struct udp_hdr) + len);
+    udp_dump((struct netif*)iface, (uint8_t*)packet, sizeof(struct udp_hdr) + len);
 #endif
-    return ip_tx(iface, IP_PROTOCOL_UDP, (uint8_t *)packet, sizeof(struct udp_hdr) + len, peer);
+    return ip_tx(iface, IP_PROTOCOL_UDP, (uint8_t*)packet, sizeof(struct udp_hdr) + len, peer);
 }
 
 static void
-udp_rx (uint8_t *buf, size_t len, ip_addr_t *src, ip_addr_t *dst, struct netif *iface) {
-    struct udp_hdr *hdr;
+udp_rx(uint8_t* buf, size_t len, ip_addr_t* src, ip_addr_t* dst, struct netif* iface)
+{
+    struct udp_hdr* hdr;
     uint32_t pseudo = 0;
-    struct udp_cb *cb;
-    void *data;
-    struct udp_queue_hdr *queue_hdr;
+    struct udp_cb* cb;
+    void* data;
+    struct udp_queue_hdr* queue_hdr;
 
     if (len < sizeof(struct udp_hdr)) {
         return;
     }
-    hdr = (struct udp_hdr *)buf;
+    hdr = (struct udp_hdr*)buf;
     pseudo += *src >> 16;
     pseudo += *src & 0xffff;
     pseudo += *dst >> 16;
     pseudo += *dst & 0xffff;
     pseudo += hton16((uint16_t)IP_PROTOCOL_UDP);
     pseudo += hton16(len);
-    if (cksum16((uint16_t *)hdr, len, pseudo) != 0) {
+    if (cksum16((uint16_t*)hdr, len, pseudo) != 0) {
         cprintf("udp checksum error\n");
         return;
     }
 #ifdef DEBUG
     cprintf(">>> udp_rx <<<\n");
-    udp_dump((struct netif *)iface, buf, len);
+    udp_dump((struct netif*)iface, buf, len);
 #endif
     acquire(&udplock);
     for (cb = cb_table; cb < array_tailof(cb_table); cb++) {
@@ -130,9 +132,9 @@ udp_rx (uint8_t *buf, size_t len, ip_addr_t *src, ip_addr_t *dst, struct netif *
     // icmp_send_destination_unreachable();
 }
 
-int
-udp_api_open (void) {
-    struct udp_cb *cb;
+int udp_api_open(void)
+{
+    struct udp_cb* cb;
 
     acquire(&udplock);
     for (cb = cb_table; cb < array_tailof(cb_table); cb++) {
@@ -146,10 +148,10 @@ udp_api_open (void) {
     return -1;
 }
 
-int
-udp_api_close (int soc) {
-    struct udp_cb *cb;
-    struct queue_entry *entry;
+int udp_api_close(int soc)
+{
+    struct udp_cb* cb;
+    struct queue_entry* entry;
 
     if (soc < 0 || soc >= UDP_CB_TABLE_SIZE) {
         return -1;
@@ -172,11 +174,11 @@ udp_api_close (int soc) {
     return 0;
 }
 
-int
-udp_api_bind (int soc, struct sockaddr *addr, int addrlen) {
-    struct sockaddr_in *sin;
+int udp_api_bind(int soc, struct sockaddr* addr, int addrlen)
+{
+    struct sockaddr_in* sin;
     struct udp_cb *cb, *tmp;
-    struct netif *iface = NULL;
+    struct netif* iface = NULL;
 
     if (soc < 0 || soc >= UDP_CB_TABLE_SIZE) {
         return -1;
@@ -184,7 +186,7 @@ udp_api_bind (int soc, struct sockaddr *addr, int addrlen) {
     if (addr->sa_family != AF_INET) {
         return -1;
     }
-    sin = (struct sockaddr_in *)addr;
+    sin = (struct sockaddr_in*)addr;
     acquire(&udplock);
     cb = &cb_table[soc];
     if (!cb->used) {
@@ -210,8 +212,8 @@ udp_api_bind (int soc, struct sockaddr *addr, int addrlen) {
     return 0;
 }
 
-int
-udp_api_bind_iface (int soc, struct netif *iface, uint16_t port) {
+int udp_api_bind_iface(int soc, struct netif* iface, uint16_t port)
+{
     struct udp_cb *cb, *tmp;
 
     if (soc < 0 || soc >= UDP_CB_TABLE_SIZE) {
@@ -236,13 +238,14 @@ udp_api_bind_iface (int soc, struct netif *iface, uint16_t port) {
 }
 
 ssize_t
-udp_api_recvfrom (int soc, uint8_t *buf, size_t size, struct sockaddr *addr, int *addrlen) {
-    struct sockaddr_in *peer = NULL;
-    struct udp_cb *cb;
-    struct queue_entry *entry;
+udp_api_recvfrom(int soc, uint8_t* buf, size_t size, struct sockaddr* addr, int* addrlen)
+{
+    struct sockaddr_in* peer = NULL;
+    struct udp_cb* cb;
+    struct queue_entry* entry;
     int ret = 0;
     ssize_t len;
-    struct udp_queue_hdr *queue_hdr;
+    struct udp_queue_hdr* queue_hdr;
 
     if (soc < 0 || soc >= UDP_CB_TABLE_SIZE) {
         return -1;
@@ -252,7 +255,7 @@ udp_api_recvfrom (int soc, uint8_t *buf, size_t size, struct sockaddr *addr, int
             return -1;
         }
         *addrlen = sizeof(struct sockaddr_in);
-        peer = (struct sockaddr_in *)addr;
+        peer = (struct sockaddr_in*)addr;
     }
     acquire(&udplock);
     cb = &cb_table[soc];
@@ -264,7 +267,7 @@ udp_api_recvfrom (int soc, uint8_t *buf, size_t size, struct sockaddr *addr, int
         sleep(cb, &udplock);
     }
     release(&udplock);
-    queue_hdr = (struct udp_queue_hdr *)entry->data;
+    queue_hdr = (struct udp_queue_hdr*)entry->data;
     if (peer) {
         peer->sin_family = AF_INET;
         peer->sin_addr = queue_hdr->addr;
@@ -278,10 +281,11 @@ udp_api_recvfrom (int soc, uint8_t *buf, size_t size, struct sockaddr *addr, int
 }
 
 ssize_t
-udp_api_sendto (int soc, uint8_t *buf, size_t len, struct sockaddr *addr, int addrlen) {
-    struct sockaddr_in *peer;
+udp_api_sendto(int soc, uint8_t* buf, size_t len, struct sockaddr* addr, int addrlen)
+{
+    struct sockaddr_in* peer;
     struct udp_cb *cb, *tmp;
-    struct netif *iface;
+    struct netif* iface;
     uint32_t p;
     uint16_t sport;
 
@@ -291,7 +295,7 @@ udp_api_sendto (int soc, uint8_t *buf, size_t len, struct sockaddr *addr, int ad
     if (!addr || addr->sa_family != AF_INET || addrlen < sizeof(struct sockaddr_in)) {
         return -1;
     }
-    peer = (struct sockaddr_in *)addr;
+    peer = (struct sockaddr_in*)addr;
     acquire(&udplock);
     cb = &cb_table[soc];
     if (!cb->used) {
@@ -328,8 +332,8 @@ udp_api_sendto (int soc, uint8_t *buf, size_t len, struct sockaddr *addr, int ad
     return udp_tx(iface, sport, buf, len, &peer->sin_addr, peer->sin_port);
 }
 
-int
-udp_init (void) {
+int udp_init(void)
+{
     initlock(&udplock, "udp");
     ip_add_protocol(IP_PROTOCOL_UDP, udp_rx);
     return 0;

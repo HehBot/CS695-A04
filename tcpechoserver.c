@@ -1,13 +1,12 @@
+#include "socket.h"
 #include "types.h"
 #include "user.h"
-#include "socket.h"
 
-int
-main (int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     int soc, acc, peerlen, ret;
     struct sockaddr_in self, peer;
-    unsigned char *addr;
+    unsigned char* addr;
     char buf[2048];
 
     printf(1, "Starting TCP Echo Server\n");
@@ -20,23 +19,23 @@ main (int argc, char *argv[])
     self.sin_family = AF_INET;
     self.sin_addr = INADDR_ANY;
     self.sin_port = hton16(7);
-    if (bind(soc, (struct sockaddr *)&self, sizeof(self)) == -1) {
+    if (bind(soc, (struct sockaddr*)&self, sizeof(self)) == -1) {
         printf(1, "bind: failure\n");
         close(soc);
         exit();
     }
-    addr = (unsigned char *)&self.sin_addr;
+    addr = (unsigned char*)&self.sin_addr;
     printf(1, "bind: success, self=%d.%d.%d.%d:%d\n", addr[0], addr[1], addr[2], addr[3], ntoh16(self.sin_port));
     listen(soc, 100);
     printf(1, "waiting for connection...\n");
     peerlen = sizeof(peer);
-    acc = accept(soc, (struct sockaddr *)&peer, &peerlen);
+    acc = accept(soc, (struct sockaddr*)&peer, &peerlen);
     if (acc == -1) {
         printf(1, "accept: failure\n");
         close(soc);
         exit();
     }
-    addr = (unsigned char *)&peer.sin_addr;
+    addr = (unsigned char*)&peer.sin_addr;
     printf(1, "accept: success, peer=%d.%d.%d.%d:%d\n", addr[0], addr[1], addr[2], addr[3], ntoh16(peer.sin_port));
     while (1) {
         ret = recv(acc, buf, sizeof(buf));
@@ -48,6 +47,6 @@ main (int argc, char *argv[])
         hexdump(buf, ret);
         send(acc, buf, ret);
     }
-    close(soc);  
+    close(soc);
     exit();
 }

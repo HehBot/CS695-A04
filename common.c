@@ -1,20 +1,19 @@
 // Copyright (c) 2012-2020 YAMAMOTO Masaya
 // SPDX-License-Identifier: MIT
 
-#include "types.h"
-#include "defs.h"
 #include "common.h"
+#include "defs.h"
+#include "types.h"
 
 #define isascii(x) ((x >= 0x00) && (x <= 0x7f))
 #define isprint(x) ((x >= 0x20) && (x <= 0x7e))
 
-void
-hexdump(void *data, size_t size)
+void hexdump(void* data, size_t size)
 {
     int offset, index;
-    unsigned char *src;
+    unsigned char* src;
 
-    src = (unsigned char *)data;
+    src = (unsigned char*)data;
     cprintf("+------+-------------------------------------------------+------------------+\n");
     for (offset = 0; offset < (int)size; offset += 16) {
         cprintf("| %04x | ", offset);
@@ -43,25 +42,25 @@ hexdump(void *data, size_t size)
 }
 
 #ifndef __BIG_ENDIAN
-#define __BIG_ENDIAN 4321
+    #define __BIG_ENDIAN 4321
 #endif
 #ifndef __LITTLE_ENDIAN
-#define __LITTLE_ENDIAN 1234
+    #define __LITTLE_ENDIAN 1234
 #endif
 
 static int endian;
 
 static int
-byteorder (void)
+byteorder(void)
 {
     uint32_t x = 0x00000001;
-    return *(uint8_t *)&x ? __LITTLE_ENDIAN : __BIG_ENDIAN;
+    return *(uint8_t*)&x ? __LITTLE_ENDIAN : __BIG_ENDIAN;
 }
 
 static uint16_t
 byteswap16(uint16_t v)
 {
-    return (v & 0x00ff) << 8 | (v & 0xff00 ) >> 8;
+    return (v & 0x00ff) << 8 | (v & 0xff00) >> 8;
 }
 
 static uint32_t
@@ -71,7 +70,7 @@ byteswap32(uint32_t v)
 }
 
 uint16_t
-hton16 (uint16_t h)
+hton16(uint16_t h)
 {
     if (!endian)
         endian = byteorder();
@@ -79,7 +78,7 @@ hton16 (uint16_t h)
 }
 
 uint16_t
-ntoh16 (uint16_t n)
+ntoh16(uint16_t n)
 {
     if (!endian)
         endian = byteorder();
@@ -103,30 +102,32 @@ ntoh32(uint32_t n)
 }
 
 uint16_t
-cksum16 (uint16_t *data, uint16_t size, uint32_t init) {
+cksum16(uint16_t* data, uint16_t size, uint32_t init)
+{
     uint32_t sum;
 
     sum = init;
-    while(size > 1) {
+    while (size > 1) {
         sum += *(data++);
         size -= 2;
     }
-    if(size) {
-        sum += *(uint8_t *)data;
+    if (size) {
+        sum += *(uint8_t*)data;
     }
-    sum  = (sum & 0xffff) + (sum >> 16);
-    sum  = (sum & 0xffff) + (sum >> 16);
+    sum = (sum & 0xffff) + (sum >> 16);
+    sum = (sum & 0xffff) + (sum >> 16);
     return ~(uint16_t)sum;
 }
 
-struct queue_entry *
-queue_push (struct queue_head *queue, void *data, size_t size) {
-    struct queue_entry *entry;
+struct queue_entry*
+queue_push(struct queue_head* queue, void* data, size_t size)
+{
+    struct queue_entry* entry;
 
     if (!queue || !data) {
         return NULL;
     }
-    entry = (struct queue_entry *)kalloc();
+    entry = (struct queue_entry*)kalloc();
     if (!entry) {
         return NULL;
     }
@@ -144,9 +145,10 @@ queue_push (struct queue_head *queue, void *data, size_t size) {
     return entry;
 }
 
-struct queue_entry *
-queue_pop (struct queue_head *queue) {
-    struct queue_entry *entry;
+struct queue_entry*
+queue_pop(struct queue_head* queue)
+{
+    struct queue_entry* entry;
 
     if (!queue || !queue->next) {
         return NULL;
@@ -161,13 +163,14 @@ queue_pop (struct queue_head *queue) {
 }
 
 time_t
-time(time_t *t)
+time(time_t* t)
 {
     time_t tmp;
     acquire(&tickslock);
     tmp = ticks / 100;
     release(&tickslock);
-    if (t) *t = tmp;
+    if (t)
+        *t = tmp;
     return tmp;
 }
 
