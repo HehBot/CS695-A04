@@ -1,5 +1,6 @@
 #include "if.h"
 #include "socket.h"
+#include "sockio.h"
 #include "stat.h"
 #include "types.h"
 #include "user.h"

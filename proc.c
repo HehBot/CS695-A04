@@ -232,10 +232,13 @@ int fork(void)
     np->pid_ns = np->child_pid_ns = curproc->child_pid_ns;
 
     int entering_new_pid_ns = 0;
-    if (curproc->child_pid_ns != curproc->pid_ns) {
-        // child will be init for its namespace
+    if (np->pid_ns != curproc->pid_ns) {
+        // child will be in a different pid ns to parent
         entering_new_pid_ns = 1;
-        np->pid_ns->initproc = np;
+        if (np->pid_ns->next_pid == 1) {
+            // child will be init of new ns
+            np->pid_ns->initproc = np;
+        }
     }
 
     pid_ns_t* iter = np->pid_ns;
@@ -405,7 +408,7 @@ int wait(void)
                 p->state = UNUSED;
                 release(&ptable.lock);
 
-                cprintf("%d waited on %d\n", curproc->global_pid, p->global_pid);
+                // cprintf("%d waited on %d\n", curproc->global_pid, p->global_pid);
 
                 return pid;
             }
