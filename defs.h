@@ -44,20 +44,26 @@ int fileioctl(struct file*, int, void*);
 void readsb(int dev, struct superblock* sb);
 int dirlink(struct inode*, char*, uint);
 struct inode* dirlookup(struct inode*, char*, uint*);
-struct inode* ialloc(uint, short);
+struct inode* ialloc(uint, short, struct inode*);
 struct inode* idup(struct inode*);
 void iinit(int dev);
 void ilock(struct inode*);
 void iput(struct inode*);
 void iunlock(struct inode*);
 void iunlockput(struct inode*);
-void iupdate(struct inode*);
+// void iupdate(struct inode*);
 int namecmp(const char*, const char*);
 struct inode* namei(char*);
 struct inode* nameiparent(char*, char*);
-int readi(struct inode*, char*, uint, uint);
+// int readi(struct inode*, char*, uint, uint);
 void stati(struct inode*, struct stat*);
-int writei(struct inode*, char*, uint, uint);
+// int writei(struct inode*, char*, uint, uint);
+
+// fs-specific functions that should only be accessed through inode->i_func
+int             fs_readi(struct inode*, char*, uint, uint);
+int             fs_writei(struct inode*, char*, uint, uint);
+void            fs_ipopulate(struct inode* ip);
+void            fs_iupdate(struct inode*);
 
 // ide.c
 void ideinit(void);

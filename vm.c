@@ -5,6 +5,7 @@
 #include "proc.h"
 #include "types.h"
 #include "x86.h"
+#include "file.h"
 
 struct inode;
 
@@ -206,7 +207,7 @@ int loaduvm(pde_t* pgdir, char* addr, struct inode* ip, uint offset, uint sz)
             n = sz - i;
         else
             n = PGSIZE;
-        if (readi(ip, P2V(pa), offset + i, n) != n)
+        if (ip->i_func->readi(ip, P2V(pa), offset + i, n) != n)
             return -1;
     }
     return 0;

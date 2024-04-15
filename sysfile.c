@@ -128,7 +128,7 @@ int sys_link(void)
     }
 
     ip->nlink++;
-    iupdate(ip);
+    ip->i_func->iupdate(ip);
     iunlock(ip);
 
     if ((dp = nameiparent(new, name)) == 0)
@@ -148,7 +148,7 @@ int sys_link(void)
 bad:
     ilock(ip);
     ip->nlink--;
-    iupdate(ip);
+    ip->i_func->iupdate(ip);
     iunlockput(ip);
     end_op();
     return -1;
@@ -162,7 +162,7 @@ isdirempty(struct inode* dp)
     struct dirent de;
 
     for (off = 2 * sizeof(de); off < dp->size; off += sizeof(de)) {
-        if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+        if (dp->i_func->readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
             panic("isdirempty: readi");
         if (de.inum != 0)
             return 0;
@@ -205,16 +205,16 @@ int sys_unlink(void)
     }
 
     memset(&de, 0, sizeof(de));
-    if (writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+    if (dp->i_func->readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
         panic("unlink: writei");
     if (ip->type == T_DIR) {
         dp->nlink--;
-        iupdate(dp);
+        dp->i_func->iupdate(dp);
     }
     iunlockput(dp);
 
     ip->nlink--;
-    iupdate(ip);
+    ip->i_func->iupdate(ip);
     iunlockput(ip);
 
     end_op();
@@ -246,18 +246,18 @@ create(char* path, short type, short major, short minor)
         return 0;
     }
 
-    if ((ip = ialloc(dp->dev, type)) == 0)
+    if ((ip = ialloc(dp->dev, type, dp)) == 0)
         panic("create: ialloc");
 
     ilock(ip);
     ip->major = major;
     ip->minor = minor;
     ip->nlink = 1;
-    iupdate(ip);
+    ip->i_func->iupdate(ip);
 
     if (type == T_DIR) { // Create . and .. entries.
         dp->nlink++; // for ".."
-        iupdate(dp);
+        dp->i_func->iupdate(dp);
         // No ip->nlink++ for ".": avoid cyclic ref count.
         if (dirlink(ip, ".", ip->inum) < 0 || dirlink(ip, "..", dp->inum) < 0)
             panic("create dots");

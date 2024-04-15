@@ -25,6 +25,9 @@ static void itrunc(struct inode*);
 // only one device
 struct superblock sb;
 
+// fs inode functions
+struct inode_functions fs_i_func = { fs_ipopulate, fs_iupdate, fs_readi, fs_writei };   
+
 // Read the super block.
 void readsb(int dev, struct superblock* sb)
 {
@@ -182,14 +185,14 @@ void iinit(int dev)
             sb.bmapstart);
 }
 
-static struct inode* iget(uint dev, uint inum);
+static struct inode* iget(uint dev, uint inum, struct inode* parent);
 
 // PAGEBREAK!
 //  Allocate an inode on device dev.
 //  Mark it as allocated by  giving it type type.
 //  Returns an unlocked but allocated and referenced inode.
 struct inode*
-ialloc(uint dev, short type)
+ialloc(uint dev, short type, struct inode* parent)
 {
     int inum;
     struct buf* bp;
@@ -203,7 +206,7 @@ ialloc(uint dev, short type)
             dip->type = type;
             log_write(bp); // mark it allocated on the disk
             brelse(bp);
-            return iget(dev, inum);
+            return iget(dev, inum, parent);
         }
         brelse(bp);
     }
@@ -214,7 +217,7 @@ ialloc(uint dev, short type)
 // Must be called after every change to an ip->xxx field
 // that lives on disk, since i-node cache is write-through.
 // Caller must hold ip->lock.
-void iupdate(struct inode* ip)
+void fs_iupdate(struct inode* ip)
 {
     struct buf* bp;
     struct dinode* dip;
@@ -235,7 +238,7 @@ void iupdate(struct inode* ip)
 // and return the in-memory copy. Does not lock
 // the inode and does not read it from disk.
 static struct inode*
-iget(uint dev, uint inum)
+iget(uint dev, uint inum, struct inode* parent)
 {
     struct inode *ip, *empty;
 
@@ -260,6 +263,12 @@ iget(uint dev, uint inum)
     ip = empty;
     ip->dev = dev;
     ip->inum = inum;
+
+    if(parent)
+        ip->i_func = parent->i_func;
+    else
+        ip->i_func = &fs_i_func; // fs is the default file system
+
     ip->ref = 1;
     ip->valid = 0;
     release(&icache.lock);
@@ -280,30 +289,36 @@ idup(struct inode* ip)
 
 // Lock the given inode.
 // Reads the inode from disk if necessary.
-void ilock(struct inode* ip)
+void
+ilock(struct inode *ip)
 {
-    struct buf* bp;
-    struct dinode* dip;
+  if(ip == 0 || ip->ref < 1)
+    panic("ilock");
 
-    if (ip == 0 || ip->ref < 1)
-        panic("ilock");
+  acquiresleep(&ip->lock);
 
-    acquiresleep(&ip->lock);
+  if(ip->valid == 0) {
+    ip->i_func->ipopulate(ip);
+  }
+}
 
-    if (ip->valid == 0) {
-        bp = bread(ip->dev, IBLOCK(ip->inum, sb));
-        dip = (struct dinode*)bp->data + ip->inum % IPB;
-        ip->type = dip->type;
-        ip->major = dip->major;
-        ip->minor = dip->minor;
-        ip->nlink = dip->nlink;
-        ip->size = dip->size;
-        memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
-        brelse(bp);
-        ip->valid = 1;
-        if (ip->type == 0)
-            panic("ilock: no type");
-    }
+void
+fs_ipopulate(struct inode* ip) {
+  struct buf *bp;
+  struct dinode *dip;
+
+  bp = bread(ip->dev, IBLOCK(ip->inum,sb));
+  dip = (struct dinode*)bp->data + ip->inum%IPB;
+  ip->type = dip->type;
+  ip->major = dip->major;
+  ip->minor = dip->minor;
+  ip->nlink = dip->nlink;
+  ip->size = dip->size;
+  memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
+  brelse(bp);
+  ip->valid = 1;
+  if(ip->type == 0)
+    panic("ilock: no type");
 }
 
 // Unlock the given inode.
@@ -333,7 +348,7 @@ void iput(struct inode* ip)
             // inode has no links and no other references: truncate and free.
             itrunc(ip);
             ip->type = 0;
-            iupdate(ip);
+            ip->i_func->iupdate(ip);
             ip->valid = 0;
         }
     }
@@ -423,7 +438,7 @@ itrunc(struct inode* ip)
     }
 
     ip->size = 0;
-    iupdate(ip);
+    ip->i_func->iupdate(ip);
 }
 
 // Copy stat information from inode.
@@ -440,7 +455,7 @@ void stati(struct inode* ip, struct stat* st)
 // PAGEBREAK!
 //  Read data from inode.
 //  Caller must hold ip->lock.
-int readi(struct inode* ip, char* dst, uint off, uint n)
+int fs_readi(struct inode* ip, char* dst, uint off, uint n)
 {
     uint tot, m;
     struct buf* bp;
@@ -468,7 +483,7 @@ int readi(struct inode* ip, char* dst, uint off, uint n)
 // PAGEBREAK!
 // Write data to inode.
 // Caller must hold ip->lock.
-int writei(struct inode* ip, char* src, uint off, uint n)
+int fs_writei(struct inode* ip, char* src, uint off, uint n)
 {
     uint tot, m;
     struct buf* bp;
@@ -494,7 +509,7 @@ int writei(struct inode* ip, char* src, uint off, uint n)
 
     if (n > 0 && off > ip->size) {
         ip->size = off;
-        iupdate(ip);
+        ip->i_func->iupdate(ip);
     }
     return n;
 }
@@ -519,7 +534,7 @@ dirlookup(struct inode* dp, char* name, uint* poff)
         panic("dirlookup not DIR");
 
     for (off = 0; off < dp->size; off += sizeof(de)) {
-        if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+        if (dp->i_func->readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
             panic("dirlookup read");
         if (de.inum == 0)
             continue;
@@ -528,7 +543,7 @@ dirlookup(struct inode* dp, char* name, uint* poff)
             if (poff)
                 *poff = off;
             inum = de.inum;
-            return iget(dp->dev, inum);
+            return iget(dp->dev, inum, dp);
         }
     }
 
@@ -550,7 +565,7 @@ int dirlink(struct inode* dp, char* name, uint inum)
 
     // Look for an empty dirent.
     for (off = 0; off < dp->size; off += sizeof(de)) {
-        if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+        if (dp->i_func->readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
             panic("dirlink read");
         if (de.inum == 0)
             break;
@@ -558,7 +573,7 @@ int dirlink(struct inode* dp, char* name, uint inum)
 
     strncpy(de.name, name, DIRSIZ);
     de.inum = inum;
-    if (writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+    if (dp->i_func->writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
         panic("dirlink");
 
     return 0;
@@ -616,7 +631,7 @@ namex(char* path, int nameiparent, char* name)
     if (*path == '/') {
         static int first_root_req = 1;
         if (first_root_req) {
-            ip = iget(ROOTDEV, ROOTINO);
+            ip = iget(ROOTDEV, ROOTINO, 0);
             first_root_req = 0;
         } else
             ip = idup(myproc()->root);
