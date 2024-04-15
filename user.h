@@ -1,6 +1,8 @@
 #ifndef USER_H
 #define USER_H
 
+#include "types.h"
+
 struct stat;
 struct rtcdate;
 struct sockaddr;
@@ -42,6 +44,8 @@ int sendto(int, char*, int, struct sockaddr*, int);
 int unshare(int);
 int getgpid(void);
 int chroot(char const*);
+int dup2(int, int);
+char* getcwd(char*, int);
 
 // ulib.c
 int stat(char const*, struct stat*);
@@ -50,7 +54,7 @@ void* memmove(void*, void const*, int);
 char* strchr(char const*, char c);
 int strcmp(char const*, char const*);
 void printf(int, char const*, ...);
-char* gets(char*, int max);
+char* gets(int fd, char*, int max);
 uint strlen(char const*);
 void* memset(void*, int, uint);
 void* malloc(uint);

@@ -129,12 +129,15 @@ void runcmd(struct cmd* cmd)
     exit();
 }
 
-int getcmd(char* buf, int nbuf)
+static int script_mode = 0;
+
+int getcmd(int fd, char* buf, int nbuf)
 {
     while (1) {
         memset(buf, 0, nbuf);
-        printf(2, "$ ");
-        gets(buf, nbuf);
+        if (!script_mode)
+            printf(2, "$ ");
+        gets(fd, buf, nbuf);
         if (buf[0] == 0) // EOF
             return -1;
         else if (buf[0] != '\n')
@@ -145,10 +148,21 @@ int getcmd(char* buf, int nbuf)
 
 int main(int argc, char* argv[])
 {
+    int fd;
+    if (argc == 2) {
+        // reading from script file
+        script_mode = 1;
+        if ((fd = open(argv[1], O_RDONLY)) < 0) {
+            printf(2, "sh: cannot open %s\n", argv[1]);
+            exit();
+        }
+    } else
+        fd = 0;
+
     static char buf[100];
 
     // Read and run input commands.
-    while (getcmd(buf, sizeof(buf)) >= 0) {
+    while (getcmd(fd, buf, sizeof(buf)) >= 0) {
         if (buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' ') {
             // Chdir must be called by the parent, not the child.
             buf[strlen(buf) - 1] = 0; // chop \n

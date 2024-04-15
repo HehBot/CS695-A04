@@ -40,30 +40,30 @@ display(const char* name)
     strcpy(ifr.ifr_name, name);
     if (ioctl(fd, SIOCGIFFLAGS, &ifr) == -1) {
         close(fd);
-        printf(0, "ifconfig: interface %s does not exist\n", name);
+        printf(1, "ifconfig: interface %s does not exist\n", name);
         return;
     }
-    printf(0, "%s: ", ifr.ifr_name);
+    printf(1, "%s: ", ifr.ifr_name);
     // flags
-    printf(0, "flags=%x<", ifr.ifr_flags);
+    printf(1, "flags=%x<", ifr.ifr_flags);
     for (s = str; *s; s++) {
         if (ifr.ifr_flags & mask) {
             if (any)
-                printf(0, "|");
+                printf(1, "|");
             any = 1;
-            printf(0, *s);
+            printf(1, *s);
         }
         mask <<= 1;
     }
-    printf(0, ">");
+    printf(1, ">");
     // mtu
     if (ioctl(fd, SIOCGIFMTU, &ifr) == -1)
         ifr.ifr_mtu = 0;
-    printf(0, " mtu %d\n", ifr.ifr_mtu);
+    printf(1, " mtu %d\n", ifr.ifr_mtu);
     // hwaddr
     if (ioctl(fd, SIOCGIFHWADDR, &ifr) == 0) {
         p = (uint8_t*)ifr.ifr_hwaddr.sa_data;
-        printf(0, "\tether %x:%x:%x:%x:%x:%x\n", p[0], p[1], p[2], p[3], p[4], p[5]);
+        printf(1, "\tether %x:%x:%x:%x:%x:%x\n", p[0], p[1], p[2], p[3], p[4], p[5]);
     }
     do {
         // addr
@@ -71,19 +71,19 @@ display(const char* name)
         if (ioctl(fd, SIOCGIFADDR, &ifr) == -1)
             break;
         p = (uint8_t*)&((struct sockaddr_in*)&ifr.ifr_addr)->sin_addr;
-        printf(0, "\tinet %d.%d.%d.%d", p[0], p[1], p[2], p[3]);
+        printf(1, "\tinet %d.%d.%d.%d", p[0], p[1], p[2], p[3]);
         // netmask
         ifr.ifr_netmask.sa_family = AF_INET;
         if (ioctl(fd, SIOCGIFNETMASK, &ifr) == -1)
             break;
         p = (uint8_t*)&((struct sockaddr_in*)&ifr.ifr_netmask)->sin_addr;
-        printf(0, " netmask %d.%d.%d.%d", p[0], p[1], p[2], p[3]);
+        printf(1, " netmask %d.%d.%d.%d", p[0], p[1], p[2], p[3]);
         // broadcast
         ifr.ifr_broadaddr.sa_family = AF_INET;
         if (ioctl(fd, SIOCGIFBRDADDR, &ifr) == -1)
             break;
         p = (uint8_t*)&((struct sockaddr_in*)&ifr.ifr_broadaddr)->sin_addr;
-        printf(0, " broadcast %d.%d.%d.%d\n", p[0], p[1], p[2], p[3]);
+        printf(1, " broadcast %d.%d.%d.%d\n", p[0], p[1], p[2], p[3]);
     } while (0);
     close(fd);
 }
@@ -119,13 +119,13 @@ ifup(const char* name)
     strcpy(ifr.ifr_name, name);
     if (ioctl(fd, SIOCGIFFLAGS, &ifr) == -1) {
         close(fd);
-        printf(0, "ifconfig: interface %s does not exist\n", name);
+        printf(1, "ifconfig: interface %s does not exist\n", name);
         return;
     }
     ifr.ifr_flags |= IFF_UP;
     if (ioctl(fd, SIOCSIFFLAGS, &ifr) == -1) {
         close(fd);
-        printf(0, "ifconfig: ioctl(SIOCSIFFLAGS) failure, interface=%s\n", name);
+        printf(1, "ifconfig: ioctl(SIOCSIFFLAGS) failure, interface=%s\n", name);
         return;
     }
     close(fd);
@@ -143,13 +143,13 @@ ifdown(const char* name)
     strcpy(ifr.ifr_name, name);
     if (ioctl(fd, SIOCGIFFLAGS, &ifr) == -1) {
         close(fd);
-        printf(0, "ifconfig: interface %s does not exist\n", name);
+        printf(1, "ifconfig: interface %s does not exist\n", name);
         return;
     }
     ifr.ifr_flags &= ~IFF_UP;
     if (ioctl(fd, SIOCSIFFLAGS, &ifr) == -1) {
         close(fd);
-        printf(0, "ifconfig: ioctl(SIOCSIFFLAGS) failure, interface=%s\n", name);
+        printf(1, "ifconfig: ioctl(SIOCSIFFLAGS) failure, interface=%s\n", name);
         return;
     }
     close(fd);
@@ -169,14 +169,14 @@ ifset(const char* name, ip_addr_t* addr, ip_addr_t* netmask)
     ((struct sockaddr_in*)&ifr.ifr_addr)->sin_addr = *addr;
     if (ioctl(fd, SIOCSIFADDR, &ifr) == -1) {
         close(fd);
-        printf(0, "ifconfig: ioctl(SIOCSIFADDR) failure, interface=%s\n", name);
+        printf(1, "ifconfig: ioctl(SIOCSIFADDR) failure, interface=%s\n", name);
         return;
     }
     ifr.ifr_netmask.sa_family = AF_INET;
     ((struct sockaddr_in*)&ifr.ifr_netmask)->sin_addr = *netmask;
     if (ioctl(fd, SIOCSIFNETMASK, &ifr) == -1) {
         close(fd);
-        printf(0, "ifconfig: ioctl(SIOCSIFNETMASK) failure, interface=%s\n", name);
+        printf(1, "ifconfig: ioctl(SIOCSIFNETMASK) failure, interface=%s\n", name);
         return;
     }
     close(fd);
@@ -185,10 +185,10 @@ ifset(const char* name, ip_addr_t* addr, ip_addr_t* netmask)
 static void
 usage(void)
 {
-    printf(0, "usage: ifconfig interface [command|address]\n");
-    printf(0, "           - command: up | down\n");
-    printf(0, "           - address: ADDRESS/PREFIX | ADDRESS netmask NETMASK\n");
-    printf(0, "       ifconfig [-a]\n");
+    printf(1, "usage: ifconfig interface [command|address]\n");
+    printf(1, "           - command: up | down\n");
+    printf(1, "           - address: ADDRESS/PREFIX | ADDRESS netmask NETMASK\n");
+    printf(1, "       ifconfig [-a]\n");
     exit();
 }
 

@@ -110,6 +110,8 @@ extern int sys_sendto(void);
 extern int sys_unshare(void);
 extern int sys_getgpid(void);
 extern int sys_chroot(void);
+extern int sys_dup2(void);
+extern int sys_getcwd(void);
 
 static int (*syscalls[])(void) = {
     [SYS_fork] = sys_fork,
@@ -148,6 +150,8 @@ static int (*syscalls[])(void) = {
     [SYS_unshare] = sys_unshare,
     [SYS_getgpid] = sys_getgpid,
     [SYS_chroot] = sys_chroot,
+    [SYS_dup2] = sys_dup2,
+    [SYS_getcwd] = sys_getcwd,
 };
 
 void syscall(void)

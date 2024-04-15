@@ -324,6 +324,7 @@ void exit(void)
                 if (p->pid[0] == 1)
                     free_pid_ns(p->pid_ns);
 
+                // move process to global namespace
                 p->pid_ns = root_pid_ns;
                 p->pid[0] = p->global_pid;
                 p->parent = root_pid_ns->initproc;
@@ -425,9 +426,7 @@ int wait(void)
             if (p->state == ZOMBIE) {
                 // Found one.
 
-                int i = namespace_depth(curproc->pid_ns, p->pid_ns);
-                pid = p->pid[i];
-
+                pid = p->pid[0];
                 kfree(p->kstack);
                 p->kstack = 0;
                 freevm(p->pgdir);

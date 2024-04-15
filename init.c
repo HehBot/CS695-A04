@@ -5,19 +5,36 @@
 #include "types.h"
 #include "user.h"
 
-char* argv[] = { "sh", 0 };
+void setup_std(void)
+{
+    int fd_stdin, fd_stdout, fd_stderr;
+
+    if ((fd_stdin = open("/console", O_RDONLY)) < 0) {
+        mknod("console", 1, 1);
+        fd_stdin = open("/console", O_RDONLY);
+    }
+    fd_stdout = open("/console", O_WRONLY);
+    fd_stderr = open("/console", O_WRONLY);
+
+    if (fd_stdin != 0) {
+        dup2(fd_stdin, 0);
+        close(fd_stdin);
+    }
+    if (fd_stdout != 1) {
+        dup2(fd_stdout, 1);
+        close(fd_stdout);
+    }
+    if (fd_stderr != 2) {
+        dup2(fd_stderr, 2);
+        close(fd_stderr);
+    }
+}
 
 int main(void)
 {
+    setup_std();
+
     int pid, wpid;
-
-    if (open("console", O_RDWR) < 0) {
-        mknod("console", 1, 1);
-        open("console", O_RDWR);
-    }
-    dup(0); // stdout
-    dup(0); // stderr
-
     for (;;) {
         printf(1, "init: starting sh\n");
         pid = fork();
@@ -26,6 +43,7 @@ int main(void)
             exit();
         }
         if (pid == 0) {
+            char* argv[] = { "sh", NULL };
             exec("sh", argv);
             printf(1, "init: exec sh failed\n");
             exit();

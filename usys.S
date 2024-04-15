@@ -27,8 +27,10 @@ SYSCALL(mkdir)
 SYSCALL(chdir)
 SYSCALL(link)
 SYSCALL(unlink)
+SYSCALL(getcwd)
 
 SYSCALL(dup)
+SYSCALL(dup2)
 
 SYSCALL(getpid)
 SYSCALL(getgpid)

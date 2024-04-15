@@ -61,6 +61,32 @@ int sys_dup(void)
     return fd;
 }
 
+int sys_dup2(void)
+{
+    struct file* old_file;
+    int old_fd;
+
+    if (argfd(0, &old_fd, &old_file) < 0)
+        return -1;
+
+    int new_fd;
+    if (argint(1, &new_fd) < 0)
+        return -1;
+
+    if (new_fd == old_fd)
+        return new_fd;
+
+    struct proc* curproc = myproc();
+    if (curproc->ofile[new_fd] != NULL) {
+        fileclose(curproc->ofile[new_fd]);
+        curproc->ofile[new_fd] = NULL;
+    }
+
+    curproc->ofile[new_fd] = old_file;
+    filedup(old_file);
+    return new_fd;
+}
+
 int sys_read(void)
 {
     struct file* f;
@@ -458,4 +484,54 @@ int sys_ioctl(void)
     if (argptr(2, (void*)&arg, IOCPARM_LEN(req)) < 0)
         return -1;
     return fileioctl(f, req, arg);
+}
+
+static int name_of_inode_in_parent(struct inode* ip, struct inode* parent, char buf[DIRSIZ])
+{
+    struct dirent de;
+    for (uint offset = 0; offset < parent->size; offset += sizeof(de)) {
+        if (readi(parent, (void*)&de, offset, sizeof(de)) != sizeof(de))
+            panic("readi");
+        if (de.inum == ip->inum) {
+            safestrcpy(buf, de.name, DIRSIZ);
+            return 0;
+        }
+    }
+    return -1;
+}
+
+static int path_of_dir_inode(char* buf, int n, struct inode* ip)
+{
+    if (ip->inum == myproc()->root->inum) {
+        buf[0] = '/';
+        return 1;
+    }
+    if (ip->type != T_DIR)
+        panic("path_of_dir_inode");
+
+    struct inode* parent = dirlookup(ip, "..", 0);
+    ilock(parent);
+    char node_name[DIRSIZ];
+    if (name_of_inode_in_parent(ip, parent, node_name) < 0)
+        panic("path_of_dir_inode");
+    int path_offset = path_of_dir_inode(buf, n, parent);
+    iunlockput(parent);
+
+    safestrcpy(buf + path_offset, node_name, n - path_offset);
+    path_offset += strlen(node_name);
+    if (path_offset == n - 1) {
+        buf[path_offset] = '\0';
+        return n;
+    } else
+        buf[path_offset++] = '/';
+    return path_offset;
+}
+
+int sys_getcwd(void)
+{
+    char* p;
+    int n;
+    if (argint(1, &n) < 0 || argptr(0, &p, n) < 0)
+        return -1;
+    return path_of_dir_inode(p, n, myproc()->cwd);
 }

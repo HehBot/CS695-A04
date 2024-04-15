@@ -199,6 +199,7 @@ UPROGS=\
 	_rm\
 	_cp\
 	_sh\
+	_pwd\
 	_chroot\
 	_stressfs\
 	_usertests\
@@ -331,5 +332,6 @@ run: xv6.img fs.img
 	ip addr add 172.16.100.1/24 dev tap0
 	ip link set tap0 up
 	$(QEMU) -nographic $(QEMUOPTS)
+	ip tuntap del mode tap name tap0
 
 .PHONY: dist-test dist docker-build docker-run run

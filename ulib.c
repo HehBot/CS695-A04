@@ -44,13 +44,13 @@ char* strchr(const char* s, char c)
     return 0;
 }
 
-char* gets(char* buf, int max)
+char* gets(int fd, char* buf, int max)
 {
     int i, cc;
     char c;
 
     for (i = 0; i + 1 < max;) {
-        cc = read(0, &c, 1);
+        cc = read(fd, &c, 1);
         if (cc < 1)
             break;
         buf[i++] = c;
