@@ -176,7 +176,8 @@ void userinit(void)
     p->tf->eip = 0; // beginning of initcode.S
 
     safestrcpy(p->name, "initcode", sizeof(p->name));
-    p->cwd = namei("/");
+    p->root = namei("/");
+    p->cwd = idup(p->root);
 
     // this assignment to p->state lets other cores
     // run this process. the acquire forces the above
@@ -278,8 +279,8 @@ int fork(void)
     for (int i = 0; i < NOFILE; i++)
         if (curproc->ofile[i])
             np->ofile[i] = filedup(curproc->ofile[i]);
-    // cprintf("Setting cwd for %d\n", curproc->global_pid);
     np->cwd = idup(curproc->cwd);
+    np->root = idup(curproc->root);
 
     safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
@@ -342,16 +343,20 @@ void exit(void)
                         p->ofile[fd] = NULL;
                     }
                 }
-                if (p->cwd != NULL) {
-                    // It's possible that a process was an EMBRYO
-                    // when it was ZOMBIEfied due to ns deletion
-                    // In this case if p->cwd != NULL then its cwd is set up
-                    // and the inode lock takes care of races
-                    begin_op();
+                begin_op();
+                // It's possible that a process was an EMBRYO
+                // when it was ZOMBIEfied due to ns deletion
+                // In this case if p->cwd != NULL then its cwd is set up
+                // and the inode lock takes care of races
+                if (p->cwd != NULL)
                     iput(p->cwd);
-                    end_op();
-                    p->cwd = NULL;
-                }
+                // similar to above
+                if (p->root != NULL)
+                    iput(p->root);
+                end_op();
+                p->cwd = NULL;
+                p->root = NULL;
+
                 acquire(&ptable.lock);
 
                 p->killed = 1;
@@ -376,8 +381,10 @@ void exit(void)
 
     begin_op();
     iput(curproc->cwd);
+    iput(curproc->root);
     end_op();
     curproc->cwd = NULL;
+    curproc->root = NULL;
 
     acquire(&ptable.lock);
 
@@ -417,7 +424,10 @@ int wait(void)
             havekids = 1;
             if (p->state == ZOMBIE) {
                 // Found one.
-                pid = p->pid[0];
+
+                int i = namespace_depth(curproc->pid_ns, p->pid_ns);
+                pid = p->pid[i];
+
                 kfree(p->kstack);
                 p->kstack = 0;
                 freevm(p->pgdir);
@@ -427,7 +437,7 @@ int wait(void)
                 p->state = UNUSED;
                 release(&ptable.lock);
 
-                cprintf("%d waited on %d\n", curproc->global_pid, p->global_pid);
+                // cprintf("%d waited on %d\n", curproc->global_pid, p->global_pid);
 
                 return pid;
             }

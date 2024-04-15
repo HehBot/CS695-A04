@@ -66,7 +66,7 @@ struct proc {
     pid_ns_t* pid_ns;
     pid_ns_t* child_pid_ns;
     int global_pid;
-    int pid[64]; // Process IDs by namespace
+    int pid[8]; // Process IDs by namespace
 
     struct proc* parent; // Parent process
     struct trapframe* tf; // Trap frame for current syscall
@@ -74,7 +74,10 @@ struct proc {
     void* chan; // If non-zero, sleeping on chan
     int killed; // If non-zero, have been killed
     struct file* ofile[NOFILE]; // Open files
+
     struct inode* cwd; // Current directory
+    struct inode* root; // Root directory
+
     char name[16]; // Process name (debugging)
 };
 

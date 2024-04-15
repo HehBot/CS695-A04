@@ -51,7 +51,7 @@ OBJS += $(NET_OBJS)
 # TOOLPREFIX = i386-jos-elf
 
 # Using native tools (e.g., on X86 Linux)
-#TOOLPREFIX = 
+#TOOLPREFIX =
 
 # Try to infer the correct TOOLPREFIX if not set
 ifndef TOOLPREFIX
@@ -197,7 +197,9 @@ UPROGS=\
 	_ls\
 	_mkdir\
 	_rm\
+	_cp\
 	_sh\
+	_chroot\
 	_stressfs\
 	_usertests\
 	_wc\

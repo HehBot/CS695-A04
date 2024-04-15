@@ -117,13 +117,13 @@ void opentest(void)
     int fd;
 
     printf(stdout, "open test\n");
-    fd = open("echo", 0);
+    fd = open("echo", O_RDONLY);
     if (fd < 0) {
         printf(stdout, "open echo failed!\n");
         exit();
     }
     close(fd);
-    fd = open("doesnotexist", 0);
+    fd = open("doesnotexist", O_RDONLY);
     if (fd >= 0) {
         printf(stdout, "open doesnotexist succeeded!\n");
         exit();
@@ -475,7 +475,7 @@ void sharedfd(void)
     else
         wait();
     close(fd);
-    fd = open("sharedfd", 0);
+    fd = open("sharedfd", O_RDONLY);
     if (fd < 0) {
         printf(1, "fstests: cannot open sharedfd for reading\n");
         return;
@@ -543,7 +543,7 @@ void fourfiles(void)
 
     for (i = 0; i < 2; i++) {
         fname = names[i];
-        fd = open(fname, 0);
+        fd = open(fname, O_RDONLY);
         total = 0;
         while ((n = read(fd, buf, sizeof(buf))) > 0) {
             for (j = 0; j < n; j++) {
@@ -613,7 +613,7 @@ void createdelete(void)
         for (pi = 0; pi < 4; pi++) {
             name[0] = 'p' + pi;
             name[1] = '0' + i;
-            fd = open(name, 0);
+            fd = open(name, O_RDONLY);
             if ((i == 0 || i >= N / 2) && fd < 0) {
                 printf(1, "oops createdelete %s didn't exist\n", name);
                 exit();
@@ -708,12 +708,12 @@ void linktest(void)
     }
     unlink("lf1");
 
-    if (open("lf1", 0) >= 0) {
+    if (open("lf1", O_RDONLY) >= 0) {
         printf(1, "unlinked lf1 but it is still there!\n");
         exit();
     }
 
-    fd = open("lf2", 0);
+    fd = open("lf2", O_RDONLY);
     if (fd < 0) {
         printf(1, "open lf2 failed\n");
         exit();
@@ -780,7 +780,7 @@ void concreate(void)
     }
 
     memset(fa, 0, sizeof(fa));
-    fd = open(".", 0);
+    fd = open(".", O_RDONLY);
     n = 0;
     while (read(fd, &de, sizeof(de)) > 0) {
         if (de.inum == 0)
@@ -814,10 +814,10 @@ void concreate(void)
             exit();
         }
         if (((i % 3) == 0 && pid == 0) || ((i % 3) == 1 && pid != 0)) {
-            close(open(file, 0));
-            close(open(file, 0));
-            close(open(file, 0));
-            close(open(file, 0));
+            close(open(file, O_RDONLY));
+            close(open(file, O_RDONLY));
+            close(open(file, O_RDONLY));
+            close(open(file, O_RDONLY));
         } else {
             unlink(file);
             unlink(file);
@@ -948,7 +948,7 @@ void subdir(void)
     write(fd, "FF", 2);
     close(fd);
 
-    fd = open("dd/dd/../ff", 0);
+    fd = open("dd/dd/../ff", O_RDONLY);
     if (fd < 0) {
         printf(1, "open dd/dd/../ff failed\n");
         exit();
@@ -991,7 +991,7 @@ void subdir(void)
         exit();
     }
 
-    fd = open("dd/dd/ffff", 0);
+    fd = open("dd/dd/ffff", O_RDONLY);
     if (fd < 0) {
         printf(1, "open dd/dd/ffff failed\n");
         exit();
@@ -1142,7 +1142,7 @@ void bigfile(void)
     }
     close(fd);
 
-    fd = open("bigfile", 0);
+    fd = open("bigfile", O_RDONLY);
     if (fd < 0) {
         printf(1, "cannot open bigfile\n");
         exit();
@@ -1197,7 +1197,7 @@ void fourteen(void)
         exit();
     }
     close(fd);
-    fd = open("12345678901234/12345678901234/12345678901234", 0);
+    fd = open("12345678901234/12345678901234/12345678901234", O_RDONLY);
     if (fd < 0) {
         printf(1, "open 12345678901234/12345678901234/12345678901234 failed\n");
         exit();
@@ -1270,7 +1270,7 @@ void dirfile(void)
         printf(1, "chdir dirfile succeeded!\n");
         exit();
     }
-    fd = open("dirfile/xx", 0);
+    fd = open("dirfile/xx", O_RDONLY);
     if (fd >= 0) {
         printf(1, "create dirfile/xx succeeded!\n");
         exit();
@@ -1302,7 +1302,7 @@ void dirfile(void)
         printf(1, "open . for writing succeeded!\n");
         exit();
     }
-    fd = open(".", 0);
+    fd = open(".", O_RDONLY);
     if (write(fd, "x", 1) > 0) {
         printf(1, "write . succeeded!\n");
         exit();
@@ -1597,7 +1597,7 @@ void bigargtest(void)
         exit();
     }
     wait();
-    fd = open("bigarg-ok", 0);
+    fd = open("bigarg-ok", O_RDONLY);
     if (fd < 0) {
         printf(stdout, "bigarg test failed!\n");
         exit();
@@ -1711,7 +1711,7 @@ int main(int argc, char* argv[])
 {
     printf(1, "usertests starting\n");
 
-    if (open("usertests.ran", 0) >= 0) {
+    if (open("usertests.ran", O_RDONLY) >= 0) {
         printf(1, "already ran user tests -- rebuild fs.img\n");
         exit();
     }

@@ -613,9 +613,14 @@ namex(char* path, int nameiparent, char* name)
 {
     struct inode *ip, *next;
 
-    if (*path == '/')
-        ip = iget(ROOTDEV, ROOTINO);
-    else
+    if (*path == '/') {
+        static int first_root_req = 1;
+        if (first_root_req) {
+            ip = iget(ROOTDEV, ROOTINO);
+            first_root_req = 0;
+        } else
+            ip = idup(myproc()->root);
+    } else
         ip = idup(myproc()->cwd);
 
     while ((path = skipelem(path, name)) != 0) {
@@ -628,6 +633,11 @@ namex(char* path, int nameiparent, char* name)
             // Stop one level early.
             iunlock(ip);
             return ip;
+        }
+        if (ip == myproc()->root && namecmp(name, "..") == 0) {
+            // prevents climbing up chroot
+            iunlock(ip);
+            continue;
         }
         if ((next = dirlookup(ip, name, 0)) == 0) {
             iunlockput(ip);

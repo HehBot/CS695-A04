@@ -1,18 +1,17 @@
+#include "fcntl.h"
 #include "stat.h"
 #include "types.h"
 #include "user.h"
 
-char buf[512];
-
 void wc(int fd, char* name)
 {
-    int i, n;
-    int l, w, c, inword;
+    int l = 0, w = 0, c = 0;
+    int inword = 0;
 
-    l = w = c = 0;
-    inword = 0;
+    char buf[512];
+    int n;
     while ((n = read(fd, buf, sizeof(buf))) > 0) {
-        for (i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++) {
             c++;
             if (buf[i] == '\n')
                 l++;
@@ -41,7 +40,7 @@ int main(int argc, char* argv[])
     }
 
     for (i = 1; i < argc; i++) {
-        if ((fd = open(argv[i], 0)) < 0) {
+        if ((fd = open(argv[i], O_RDONLY)) < 0) {
             printf(1, "wc: cannot open %s\n", argv[i]);
             exit();
         }

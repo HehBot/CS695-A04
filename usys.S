@@ -9,28 +9,37 @@
     ret
 
 SYSCALL(fork)
+SYSCALL(exec)
 SYSCALL(exit)
 SYSCALL(wait)
-SYSCALL(pipe)
+SYSCALL(kill)
+
 SYSCALL(read)
 SYSCALL(write)
-SYSCALL(close)
-SYSCALL(kill)
-SYSCALL(exec)
+SYSCALL(pipe)
+
 SYSCALL(open)
-SYSCALL(mknod)
-SYSCALL(unlink)
+SYSCALL(close)
 SYSCALL(fstat)
-SYSCALL(link)
+SYSCALL(mknod)
+
 SYSCALL(mkdir)
 SYSCALL(chdir)
+SYSCALL(link)
+SYSCALL(unlink)
+
 SYSCALL(dup)
+
 SYSCALL(getpid)
+SYSCALL(getgpid)
+
 SYSCALL(sbrk)
 SYSCALL(sleep)
 SYSCALL(uptime)
+
 # iotcl
 SYSCALL(ioctl)
+
 # socket
 SYSCALL(socket)
 SYSCALL(bind)
@@ -40,6 +49,7 @@ SYSCALL(recv)
 SYSCALL(send)
 SYSCALL(recvfrom)
 SYSCALL(sendto)
+
 # namespaces
 SYSCALL(unshare)
-SYSCALL(getgpid)
+SYSCALL(chroot)

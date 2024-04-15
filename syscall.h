@@ -37,5 +37,6 @@
 
 #define SYS_unshare 32
 #define SYS_getgpid 33
+#define SYS_chroot 34
 
 #endif // SYSCALL_H

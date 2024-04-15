@@ -34,11 +34,14 @@ int main(void)
     printf(1, "\n\n\ntest with wait\n\n");
     if (fork() == 0) {
         test();
-        while (wait() >= 0)
-            ;
+        int p;
+        while ((p = wait()) >= 0)
+            printf(1, "<%d>%d waited on %d\n", getgpid(), getpid(), p);
         exit();
     }
-    wait();
+    int p;
+    while ((p = wait()) >= 0)
+        printf(1, "<%d>%d waited on %d\n", getgpid(), getpid(), p);
 
     sleep(500);
 
@@ -47,7 +50,8 @@ int main(void)
         test();
         exit();
     }
-    wait();
+    while ((p = wait()) >= 0)
+        printf(1, "<%d>%d waited on %d\n", getgpid(), getpid(), p);
 
     exit();
 }
