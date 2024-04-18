@@ -328,10 +328,18 @@ docker-run:
 	docker run -it --name xv6-net --rm --device=/dev/net/tun --cap-add=NET_ADMIN xv6-net make run
 
 run: xv6.img fs.img
-	ip tuntap add mode tap name tap0
-	ip addr add 172.16.100.1/24 dev tap0
-	ip link set tap0 up
-	$(QEMU) -nographic $(QEMUOPTS)
-	ip tuntap del mode tap name tap0
+	sudo ip tuntap add mode tap name tap0
+	sudo ip addr add 172.16.100.1/24 dev tap0
+	sudo ip link set tap0 up
+	sudo $(QEMU) -nographic $(QEMUOPTS)
+	sudo ip tuntap del mode tap name tap0
 
-.PHONY: dist-test dist docker-build docker-run run
+run-gdb: fs.img xv6.img .gdbinit
+	sudo ip tuntap add mode tap name tap0
+	sudo ip addr add 172.16.100.1/24 dev tap0
+	sudo ip link set tap0 up
+	@echo "*** Now run 'gdb'." 1>&2
+	sudo $(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
+	sudo ip tuntap del mode tap name tap0
+
+.PHONY: dist-test dist docker-build docker-run run run-gdb

@@ -30,9 +30,23 @@ void setup_std(void)
     }
 }
 
+void setup_net(char* interface, char* ipaddr)
+{
+    char* argv1[] = { "ifconfig", interface, ipaddr, "netmask", "255.255.255.0", NULL };
+    if (fork() == 0)
+        exec(argv1[0], argv1);
+    wait();
+
+    char* argv2[] = { "ifconfig", interface, "up", NULL };
+    if (fork() == 0)
+        exec(argv2[0], argv2);
+    wait();
+}
+
 int main(void)
 {
     setup_std();
+    setup_net("net1", "172.16.100.2");
 
     int pid, wpid;
     for (;;) {
