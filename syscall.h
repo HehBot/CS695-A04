@@ -39,4 +39,6 @@
 #define SYS_getgpid 33
 #define SYS_chroot 34
 
+#define SYS_mount_procfs 35
+
 #endif // SYSCALL_H

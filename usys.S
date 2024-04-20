@@ -53,3 +53,5 @@ SYSCALL(sendto)
 # namespaces
 SYSCALL(unshare)
 SYSCALL(chroot)
+
+SYSCALL(mount_procfs)

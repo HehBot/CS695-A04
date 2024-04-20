@@ -14,6 +14,8 @@
 #include "stat.h"
 #include "types.h"
 
+extern int root_proc_inum;
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 int argfd(int n, int* pfd, struct file** pf)
@@ -269,6 +271,35 @@ create(char* path, short type, short major, short minor)
     iunlockput(dp);
 
     return ip;
+}
+
+int sys_mount_procfs(void){
+    char* path;
+    struct inode* dp;
+    struct inode* ip;
+
+    begin_op();
+    if (argstr(0, &path) < 0 || (dp = namei(path)) == 0) {
+        end_op();
+        return -1;
+    }
+
+    ilock(dp);
+    if ((ip = dirlookup(dp, "proc", 0)) != 0){
+        iunlockput(dp);
+        end_op();
+        return -1;
+    }
+
+    if (dirlink(dp, "proc", root_proc_inum) < 0)
+        panic("mount: proc fs");
+    
+    add_mount(dp->inum);
+
+    iunlockput(dp);
+    end_op();
+    
+    return 1;
 }
 
 int sys_open(void)

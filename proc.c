@@ -5,11 +5,16 @@
 #include "spinlock.h"
 #include "types.h"
 #include "x86.h"
+#include "stat.h"
+#include "file.h"
 
 struct {
     struct spinlock lock;
     struct proc proc[NPROC];
 } ptable;
+
+int root_proc_inum;
+extern int proc_inode_counter;
 
 static pid_ns_t* root_pid_ns;
 
@@ -149,6 +154,9 @@ found:
     p->context = (struct context*)sp;
     memset(p->context, 0, sizeof *p->context);
     p->context->eip = (uint)forkret;
+
+    p->procfs_nums[0] = ++proc_inode_counter;
+    p->procfs_nums[1] = ++proc_inode_counter;
 
     return p;
 }
@@ -545,6 +553,7 @@ void forkret(void)
         first = 0;
         iinit(ROOTDEV);
         initlog(ROOTDEV);
+        root_proc_inum = ++proc_inode_counter;
     }
 
     // Return to "caller", actually trapret (see allocproc).

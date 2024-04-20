@@ -20,6 +20,7 @@ void binit(void);
 struct buf* bread(uint, uint);
 void brelse(struct buf*);
 void bwrite(struct buf*);
+struct buf* bget(uint, uint);
 
 // console.c
 void consoleinit(void);
@@ -64,6 +65,14 @@ int             fs_readi(struct inode*, char*, uint, uint);
 int             fs_writei(struct inode*, char*, uint, uint);
 void            fs_ipopulate(struct inode* ip);
 void            fs_iupdate(struct inode*);
+
+// procfs-specific functions that should only be accessed through inode->i_func
+int             proc_fs_readi(struct inode*, char*, uint, uint);
+int             proc_fs_writei(struct inode*, char*, uint, uint);
+void            proc_fs_ipopulate(struct inode* ip);
+void            proc_fs_iupdate(struct inode*);
+
+void            add_mount(int);
 
 // ide.c
 void ideinit(void);

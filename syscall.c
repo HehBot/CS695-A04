@@ -111,6 +111,8 @@ extern int sys_unshare(void);
 extern int sys_getgpid(void);
 extern int sys_chroot(void);
 
+extern int sys_mount_procfs(void);
+
 static int (*syscalls[])(void) = {
     [SYS_fork] = sys_fork,
     [SYS_exit] = sys_exit,
@@ -148,6 +150,8 @@ static int (*syscalls[])(void) = {
     [SYS_unshare] = sys_unshare,
     [SYS_getgpid] = sys_getgpid,
     [SYS_chroot] = sys_chroot,
+    
+    [SYS_mount_procfs] = sys_mount_procfs,
 };
 
 void syscall(void)

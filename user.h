@@ -43,6 +43,8 @@ int unshare(int);
 int getgpid(void);
 int chroot(char const*);
 
+int mount_procfs(char const*);
+
 // ulib.c
 int stat(char const*, struct stat*);
 char* strcpy(char*, char const*);
