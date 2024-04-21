@@ -14,6 +14,8 @@
 #include "stat.h"
 #include "types.h"
 
+extern int root_proc_inum;
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 int argfd(int n, int* pfd, struct file** pf)
@@ -154,7 +156,7 @@ int sys_link(void)
     }
 
     ip->nlink++;
-    iupdate(ip);
+    ip->i_func->iupdate(ip);
     iunlock(ip);
 
     if ((dp = nameiparent(new, name)) == 0)
@@ -174,7 +176,7 @@ int sys_link(void)
 bad:
     ilock(ip);
     ip->nlink--;
-    iupdate(ip);
+    ip->i_func->iupdate(ip);
     iunlockput(ip);
     end_op();
     return -1;
@@ -188,7 +190,7 @@ isdirempty(struct inode* dp)
     struct dirent de;
 
     for (off = 2 * sizeof(de); off < dp->size; off += sizeof(de)) {
-        if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+        if (dp->i_func->readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
             panic("isdirempty: readi");
         if (de.inum != 0)
             return 0;
@@ -231,16 +233,16 @@ int sys_unlink(void)
     }
 
     memset(&de, 0, sizeof(de));
-    if (writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+    if (dp->i_func->readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
         panic("unlink: writei");
     if (ip->type == T_DIR) {
         dp->nlink--;
-        iupdate(dp);
+        dp->i_func->iupdate(dp);
     }
     iunlockput(dp);
 
     ip->nlink--;
-    iupdate(ip);
+    ip->i_func->iupdate(ip);
     iunlockput(ip);
 
     end_op();
@@ -272,18 +274,18 @@ create(char* path, short type, short major, short minor)
         return 0;
     }
 
-    if ((ip = ialloc(dp->dev, type)) == 0)
+    if ((ip = ialloc(dp->dev, type, dp)) == 0)
         panic("create: ialloc");
 
     ilock(ip);
     ip->major = major;
     ip->minor = minor;
     ip->nlink = 1;
-    iupdate(ip);
+    ip->i_func->iupdate(ip);
 
     if (type == T_DIR) { // Create . and .. entries.
         dp->nlink++; // for ".."
-        iupdate(dp);
+        dp->i_func->iupdate(dp);
         // No ip->nlink++ for ".": avoid cyclic ref count.
         if (dirlink(ip, ".", ip->inum) < 0 || dirlink(ip, "..", dp->inum) < 0)
             panic("create dots");
@@ -295,6 +297,36 @@ create(char* path, short type, short major, short minor)
     iunlockput(dp);
 
     return ip;
+}
+
+int sys_mount_procfs(void)
+{
+    char* path;
+    struct inode* dp;
+    struct inode* ip;
+
+    begin_op();
+    if (argstr(0, &path) < 0 || (dp = namei(path)) == 0) {
+        end_op();
+        return -1;
+    }
+
+    ilock(dp);
+    if ((ip = dirlookup(dp, "proc", 0)) != 0) {
+        iunlockput(dp);
+        end_op();
+        return -1;
+    }
+
+    if (dirlink(dp, "proc", root_proc_inum) < 0)
+        panic("mount: proc fs");
+
+    add_mount(dp->inum);
+
+    iunlockput(dp);
+    end_op();
+
+    return 1;
 }
 
 int sys_open(void)
@@ -490,7 +522,7 @@ static int name_of_inode_in_parent(struct inode* ip, struct inode* parent, char 
 {
     struct dirent de;
     for (uint offset = 0; offset < parent->size; offset += sizeof(de)) {
-        if (readi(parent, (void*)&de, offset, sizeof(de)) != sizeof(de))
+        if (parent->i_func->readi(parent, (void*)&de, offset, sizeof(de)) != sizeof(de))
             panic("readi");
         if (de.inum == ip->inum) {
             safestrcpy(buf, de.name, DIRSIZ);

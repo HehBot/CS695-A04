@@ -79,6 +79,8 @@ struct proc {
     struct inode* root; // Root directory
 
     char name[16]; // Process name (debugging)
+
+    int procfs_nums[5];
 };
 
 // Process memory is laid out contiguously, low addresses first:

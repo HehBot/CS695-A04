@@ -47,6 +47,8 @@ int chroot(char const*);
 int dup2(int, int);
 char* getcwd(char*, int);
 
+int mount_procfs(char const*);
+
 // ulib.c
 int stat(char const*, struct stat*);
 char* strcpy(char*, char const*);

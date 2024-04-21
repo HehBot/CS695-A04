@@ -113,6 +113,8 @@ extern int sys_chroot(void);
 extern int sys_dup2(void);
 extern int sys_getcwd(void);
 
+extern int sys_mount_procfs(void);
+
 static int (*syscalls[])(void) = {
     [SYS_fork] = sys_fork,
     [SYS_exit] = sys_exit,
@@ -152,6 +154,7 @@ static int (*syscalls[])(void) = {
     [SYS_chroot] = sys_chroot,
     [SYS_dup2] = sys_dup2,
     [SYS_getcwd] = sys_getcwd,
+    [SYS_mount_procfs] = sys_mount_procfs,
 };
 
 void syscall(void)

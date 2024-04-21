@@ -45,10 +45,12 @@ void setup_net(char* interface, char* ipaddr)
 
 int main(void)
 {
+    mount_procfs("/");
     setup_std();
     setup_net("net1", "172.16.100.2");
 
     int pid, wpid;
+
     for (;;) {
         printf(1, "init: starting sh\n");
         pid = fork();
