@@ -44,6 +44,7 @@ NET_OBJS = \
 	syssocket.o\
 	tcp.o\
 	udp.o\
+	loopback.o\
 
 OBJS += $(NET_OBJS)
 
@@ -94,7 +95,7 @@ CC = $(TOOLPREFIX)gcc
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
-OBJDUMP = $(TOOLPREFIX)objdump
+OBJDUMP = \#$(TOOLPREFIX)objdump
 CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O0 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -Wno-unused-variable -Wno-unused-function -Wno-address-of-packed-member
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
@@ -212,6 +213,7 @@ NET_UPROGS=\
     _ifconfig\
 	_tcpechoserver\
 	_udpechoserver\
+	_lotestclient\
 
 NS_UPROGS=\
 	_pid_ns_forktest\
@@ -342,7 +344,7 @@ run-gdb: fs.img xv6.img .gdbinit
 	sudo ip addr add 172.16.100.1/24 dev tap0
 	sudo ip link set tap0 up
 	@echo "*** Now run 'gdb'." 1>&2
-	sudo $(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
+	sudo $(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 	sudo ip tuntap del mode tap name tap0
 
 .PHONY: dist-test dist docker-build docker-run run run-gdb

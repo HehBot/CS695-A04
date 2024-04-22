@@ -1,6 +1,7 @@
 #ifndef NET_H
 #define NET_H
 
+#define NETDEV_TYPE_LOOPBACK (0x0000)
 #define NETDEV_TYPE_ETHERNET (0x0001)
 #define NETDEV_TYPE_SLIP (0x0002)
 

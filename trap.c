@@ -31,6 +31,9 @@ void idtinit(void)
 // PAGEBREAK: 41
 void trap(struct trapframe* tf)
 {
+    // clear out loopback queue
+    lo_rx();
+
     if (tf->trapno == T_SYSCALL) {
         if (myproc()->killed)
             exit();

@@ -33,14 +33,14 @@ int ethernet_addr_pton(const char* p, uint8_t* n)
 }
 
 static const char*
-ethernet_type_ntoa(uint16_t type)
+netproto_type_ntoa(uint16_t type)
 {
     switch (ntoh16(type)) {
-    case ETHERNET_TYPE_IP:
+    case NETPROTO_TYPE_IP:
         return "IP";
-    case ETHERNET_TYPE_ARP:
+    case NETPROTO_TYPE_ARP:
         return "ARP";
-    case ETHERNET_TYPE_IPV6:
+    case NETPROTO_TYPE_IPV6:
         return "IPv6";
     }
     return "UNKNOWN";
@@ -65,7 +65,7 @@ ethernet_dump(struct netdev* dev, uint8_t* frame, size_t flen)
     cprintf("  dev: %s (%s)\n", dev->name, ethernet_addr_ntop(dev->addr, addr, sizeof(addr)));
     cprintf("  src: %s\n", ethernet_addr_ntop(hdr->src, addr, sizeof(addr)));
     cprintf("  dst: %s\n", ethernet_addr_ntop(hdr->dst, addr, sizeof(addr)));
-    cprintf(" type: 0x%04x (%s)\n", ntoh16(hdr->type), ethernet_type_ntoa(hdr->type));
+    cprintf(" type: 0x%04x (%s)\n", ntoh16(hdr->type), netproto_type_ntoa(hdr->type));
     cprintf("  len: %u octets\n", flen);
     hexdump(frame, flen);
 }

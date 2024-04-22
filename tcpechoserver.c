@@ -11,8 +11,8 @@ int main(int argc, char* argv[])
 
     printf(1, "Starting TCP Echo Server\n");
     soc = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (soc == 1) {
-        printf(1, "socket: failure\n");
+    if (soc == -1) {
+        printf(2, "socket: failure\n");
         exit();
     }
     printf(1, "socket: success, soc=%d\n", soc);
@@ -20,7 +20,7 @@ int main(int argc, char* argv[])
     self.sin_addr = INADDR_ANY;
     self.sin_port = hton16(7);
     if (bind(soc, (struct sockaddr*)&self, sizeof(self)) == -1) {
-        printf(1, "bind: failure\n");
+        printf(2, "bind: failure\n");
         close(soc);
         exit();
     }
@@ -31,7 +31,7 @@ int main(int argc, char* argv[])
     peerlen = sizeof(peer);
     acc = accept(soc, (struct sockaddr*)&peer, &peerlen);
     if (acc == -1) {
-        printf(1, "accept: failure\n");
+        printf(2, "accept: failure\n");
         close(soc);
         exit();
     }
@@ -48,5 +48,6 @@ int main(int argc, char* argv[])
         send(acc, buf, ret);
     }
     close(soc);
+    close(acc);
     exit();
 }

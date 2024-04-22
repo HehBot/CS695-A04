@@ -353,7 +353,7 @@ ip_tx_netdev(struct netif* netif, uint8_t* packet, size_t plen, const ip_addr_t*
             memcpy(ha, netif->dev->broadcast, netif->dev->alen);
         }
     }
-    if (netif->dev->ops->xmit(netif->dev, ETHERNET_TYPE_IP, packet, plen, (void*)ha) != (ssize_t)plen) {
+    if (netif->dev->ops->xmit(netif->dev, NETPROTO_TYPE_IP, packet, plen, (void*)ha) != (ssize_t)plen) {
         return -1;
     }
     return 1;

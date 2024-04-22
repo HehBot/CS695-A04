@@ -143,4 +143,7 @@ void netinit(void)
     icmp_init();
     udp_init();
     tcp_init();
+
+    void setup_lo(void);
+    setup_lo();
 }

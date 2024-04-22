@@ -105,7 +105,7 @@ arp_table_update(struct netdev* dev, const ip_addr_t* pa, const uint8_t* ha)
             /* warning: receive response from unintended device */
             dev = entry->netif->dev;
         }
-        dev->ops->xmit(dev, ETHERNET_TYPE_IP, (uint8_t*)entry->data, entry->len, entry->ha);
+        dev->ops->xmit(dev, NETPROTO_TYPE_IP, (uint8_t*)entry->data, entry->len, entry->ha);
         kfree(entry->data);
         entry->data = NULL;
         entry->len = 0;
@@ -182,7 +182,7 @@ arp_send_request(struct netif* netif, const ip_addr_t* tpa)
         return -1;
     }
     request.hdr.hrd = hton16(ARP_HRD_ETHERNET);
-    request.hdr.pro = hton16(ETHERNET_TYPE_IP);
+    request.hdr.pro = hton16(NETPROTO_TYPE_IP);
     request.hdr.hln = ETHERNET_ADDR_LEN;
     request.hdr.pln = IP_ADDR_LEN;
     request.hdr.op = hton16(ARP_OP_REQUEST);
@@ -194,7 +194,7 @@ arp_send_request(struct netif* netif, const ip_addr_t* tpa)
     fprintf(stderr, ">>> arp_send_request <<<\n");
     arp_dump((uint8_t*)&request, sizeof(request));
 #endif
-    if (netif->dev->ops->xmit(netif->dev, ETHERNET_TYPE_ARP, (uint8_t*)&request, sizeof(request), ETHERNET_ADDR_BROADCAST) == -1) {
+    if (netif->dev->ops->xmit(netif->dev, NETPROTO_TYPE_ARP, (uint8_t*)&request, sizeof(request), ETHERNET_ADDR_BROADCAST) == -1) {
         return -1;
     }
     return 0;
@@ -209,7 +209,7 @@ arp_send_reply(struct netif* netif, const uint8_t* tha, const ip_addr_t* tpa, co
         return -1;
     }
     reply.hdr.hrd = hton16(ARP_HRD_ETHERNET);
-    reply.hdr.pro = hton16(ETHERNET_TYPE_IP);
+    reply.hdr.pro = hton16(NETPROTO_TYPE_IP);
     reply.hdr.hln = ETHERNET_ADDR_LEN;
     reply.hdr.pln = IP_ADDR_LEN;
     reply.hdr.op = hton16(ARP_OP_REPLY);
@@ -221,7 +221,7 @@ arp_send_reply(struct netif* netif, const uint8_t* tha, const ip_addr_t* tpa, co
     cprintf(">>> arp_send_reply <<<\n");
     arp_dump((uint8_t*)&reply, sizeof(reply));
 #endif
-    if (netif->dev->ops->xmit(netif->dev, ETHERNET_TYPE_ARP, (uint8_t*)&reply, sizeof(reply), dst) < 0) {
+    if (netif->dev->ops->xmit(netif->dev, NETPROTO_TYPE_ARP, (uint8_t*)&reply, sizeof(reply), dst) < 0) {
         return -1;
     }
     return 0;
@@ -242,7 +242,7 @@ arp_rx(uint8_t* packet, size_t plen, struct netdev* dev)
     if (ntoh16(message->hdr.hrd) != ARP_HRD_ETHERNET) {
         return;
     }
-    if (ntoh16(message->hdr.pro) != ETHERNET_TYPE_IP) {
+    if (ntoh16(message->hdr.pro) != NETPROTO_TYPE_IP) {
         return;
     }
     if (message->hdr.hln != ETHERNET_ADDR_LEN) {

@@ -62,6 +62,7 @@ struct tcp_txq_head {
 
 struct tcp_cb {
     uint8_t used;
+    struct spinlock lock;
     uint8_t state;
     struct netif* iface;
     uint16_t port;
@@ -98,7 +99,7 @@ struct tcp_cb {
 #define TCP_SOCKET_ISINVALID(x) (x < 0 || x >= TCP_CB_TABLE_SIZE)
 
 // static pthread_t timer_thread;
-static struct spinlock tcplock;
+static struct spinlock cb_table_lock;
 struct tcp_cb cb_table[TCP_CB_TABLE_SIZE];
 
 static int
@@ -154,17 +155,20 @@ tcp_cb_clear(struct tcp_cb* cb)
         kfree((char*)entry);
         tcp_cb_clear(backlog);
     }
-    memset(cb, 0, sizeof(*cb));
+    // need to be careful while zeroing out cb
+    // to ensure lock is not accidentally released
+    cb->used = 0;
+    memset(&cb->lock + 1, 0, sizeof(*cb) - sizeof(cb->lock) - sizeof(cb->used));
     return 0;
 }
 
 static ssize_t
 tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf, size_t len)
 {
-    uint8_t segment[1500];
+    // shouldn't be static but removing it causes kernel stack overflow
+    static uint8_t segment[1500];
     struct tcp_hdr* hdr;
     ip_addr_t self, peer;
-    uint32_t pseudo = 0;
 
     memset(&segment, 0, sizeof(segment));
     hdr = (struct tcp_hdr*)segment;
@@ -178,8 +182,14 @@ tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf,
     hdr->sum = 0;
     hdr->urg = 0;
     memcpy(hdr + 1, buf, len);
-    self = ((struct netif_ip*)cb->iface)->unicast;
+    if (cb->iface != NULL)
+        self = ((struct netif_ip*)cb->iface)->unicast;
+    else
+        // FIXME what to do here?
+        self = 0x100007f;
     peer = cb->peer.addr;
+
+    uint32_t pseudo = 0;
     pseudo += (self >> 16) & 0xffff;
     pseudo += self & 0xffff;
     pseudo += (peer >> 16) & 0xffff;
@@ -187,6 +197,7 @@ tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf,
     pseudo += hton16((uint16_t)IP_PROTOCOL_TCP);
     pseudo += hton16(sizeof(struct tcp_hdr) + len);
     hdr->sum = cksum16((uint16_t*)hdr, sizeof(struct tcp_hdr) + len, pseudo);
+
     ip_tx(cb->iface, IP_PROTOCOL_TCP, (uint8_t*)hdr, sizeof(struct tcp_hdr) + len, &peer);
     tcp_txq_add(cb, hdr, sizeof(struct tcp_hdr) + len);
     return len;
@@ -460,7 +471,7 @@ tcp_rx(uint8_t* segment, size_t len, ip_addr_t* src, ip_addr_t* dst, struct neti
         cprintf("tcp checksum error!\n");
         return;
     }
-    acquire(&tcplock);
+    acquire(&cb_table_lock);
     for (cb = cb_table; cb < array_tailof(cb_table); cb++) {
         if (!cb->used) {
             if (!fcb) {
@@ -468,6 +479,7 @@ tcp_rx(uint8_t* segment, size_t len, ip_addr_t* src, ip_addr_t* dst, struct neti
             }
         } else if ((!cb->iface || cb->iface == iface) && cb->port == hdr->dst) {
             if (cb->peer.addr == *src && cb->peer.port == hdr->src) {
+                acquire(&cb->lock);
                 break;
             }
             if (cb->state == TCP_CB_STATE_LISTEN && !lcb) {
@@ -478,10 +490,12 @@ tcp_rx(uint8_t* segment, size_t len, ip_addr_t* src, ip_addr_t* dst, struct neti
     if (cb == array_tailof(cb_table)) {
         if (!lcb || !fcb || !TCP_FLG_IS(hdr->flg, TCP_FLG_SYN)) {
             // send RST
-            release(&tcplock);
+            release(&cb_table_lock);
             return;
         }
         cb = fcb;
+        acquire(&cb->lock);
+        release(&cb_table_lock);
         cb->used = 1;
         cb->state = lcb->state;
         cb->iface = iface;
@@ -490,9 +504,10 @@ tcp_rx(uint8_t* segment, size_t len, ip_addr_t* src, ip_addr_t* dst, struct neti
         cb->peer.port = hdr->src;
         cb->rcv.wnd = sizeof(cb->window);
         cb->parent = lcb;
-    }
+    } else
+        release(&cb_table_lock);
     tcp_incoming_event(cb, hdr, len);
-    release(&tcplock);
+    release(&cb->lock);
     return;
 }
 
@@ -500,15 +515,15 @@ int tcp_api_open(void)
 {
     struct tcp_cb* cb;
 
-    acquire(&tcplock);
+    acquire(&cb_table_lock);
     for (cb = cb_table; cb < array_tailof(cb_table); cb++) {
         if (!cb->used) {
             cb->used = 1;
-            release(&tcplock);
+            release(&cb_table_lock);
             return array_offset(cb_table, cb);
         }
     }
-    release(&tcplock);
+    release(&cb_table_lock);
     return -1;
 }
 
@@ -519,10 +534,10 @@ int tcp_api_close(int soc)
     if (TCP_SOCKET_ISINVALID(soc)) {
         return -1;
     }
-    acquire(&tcplock);
     cb = &cb_table[soc];
+    acquire(&cb->lock);
     if (!cb->used) {
-        release(&tcplock);
+        release(&cb->lock);
         return -1;
     }
     switch (cb->state) {
@@ -531,19 +546,19 @@ int tcp_api_close(int soc)
         tcp_tx(cb, cb->snd.nxt, cb->rcv.nxt, TCP_FLG_FIN | TCP_FLG_ACK, NULL, 0);
         cb->state = TCP_CB_STATE_FIN_WAIT1;
         cb->snd.nxt++;
-        sleep(cb, &tcplock);
+        sleep(cb, &cb->lock);
         break;
     case TCP_CB_STATE_CLOSE_WAIT:
         tcp_tx(cb, cb->snd.nxt, cb->rcv.nxt, TCP_FLG_FIN | TCP_FLG_ACK, NULL, 0);
         cb->state = TCP_CB_STATE_LAST_ACK;
         cb->snd.nxt++;
-        sleep(cb, &tcplock);
+        sleep(cb, &cb->lock);
         break;
     default:
         break;
     }
     tcp_cb_clear(cb); /* TCP_CB_STATE_CLOSED */
-    release(&tcplock);
+    release(&cb->lock);
     return 0;
 }
 
@@ -560,27 +575,29 @@ int tcp_api_connect(int soc, struct sockaddr* addr, int addrlen)
         return -1;
     }
     sin = (struct sockaddr_in*)addr;
-    acquire(&tcplock);
     cb = &cb_table[soc];
+    acquire(&cb->lock);
     if (!cb->used || cb->state != TCP_CB_STATE_CLOSED) {
-        release(&tcplock);
+        release(&cb->lock);
         return -1;
     }
     if (!cb->port) {
         int offset = time(NULL) % 1024;
         for (p = TCP_SOURCE_PORT_MIN + offset; p <= TCP_SOURCE_PORT_MAX; p++) {
+            acquire(&cb_table_lock);
             for (tmp = cb_table; tmp < array_tailof(cb_table); tmp++) {
                 if (tmp->used && tmp->port == hton16((uint16_t)p)) {
                     break;
                 }
             }
+            release(&cb_table_lock);
             if (tmp == array_tailof(cb_table)) {
                 cb->port = hton16((uint16_t)p);
                 break;
             }
         }
         if (!cb->port) {
-            release(&tcplock);
+            release(&cb->lock);
             return -1;
         }
     }
@@ -591,10 +608,9 @@ int tcp_api_connect(int soc, struct sockaddr* addr, int addrlen)
     tcp_tx(cb, cb->iss, 0, TCP_FLG_SYN, NULL, 0);
     cb->snd.nxt = cb->iss + 1;
     cb->state = TCP_CB_STATE_SYN_SENT;
-    while (cb->state == TCP_CB_STATE_SYN_SENT) {
-        sleep(&cb_table[soc], &tcplock);
-    }
-    release(&tcplock);
+    while (cb->state == TCP_CB_STATE_SYN_SENT)
+        sleep(cb, &cb->lock);
+    release(&cb->lock);
     return 0;
 }
 
@@ -610,20 +626,22 @@ int tcp_api_bind(int soc, struct sockaddr* addr, int addrlen)
         return -1;
     }
     sin = (struct sockaddr_in*)addr;
-    acquire(&tcplock);
+    acquire(&cb_table_lock);
     for (cb = cb_table; cb < array_tailof(cb_table); cb++) {
         if (cb->port == sin->sin_port) {
-            release(&tcplock);
+            release(&cb_table_lock);
             return -1;
         }
     }
     cb = &cb_table[soc];
+    acquire(&cb->lock);
+    release(&cb_table_lock);
     if (!cb->used || cb->state != TCP_CB_STATE_CLOSED) {
-        release(&tcplock);
+        release(&cb->lock);
         return -1;
     }
     cb->port = sin->sin_port;
-    release(&tcplock);
+    release(&cb->lock);
     return 0;
 }
 
@@ -634,14 +652,14 @@ int tcp_api_listen(int soc, int backlog)
     if (TCP_SOCKET_ISINVALID(soc)) {
         return -1;
     }
-    acquire(&tcplock);
     cb = &cb_table[soc];
+    acquire(&cb->lock);
     if (!cb->used || cb->state != TCP_CB_STATE_CLOSED || !cb->port) {
-        release(&tcplock);
+        release(&cb->lock);
         return -1;
     }
     cb->state = TCP_CB_STATE_LISTEN;
-    release(&tcplock);
+    release(&cb->lock);
     return 0;
 }
 
@@ -664,18 +682,18 @@ int tcp_api_accept(int soc, struct sockaddr* addr, int* addrlen)
         *addrlen = sizeof(struct sockaddr_in);
         sin = (struct sockaddr_in*)addr;
     }
-    acquire(&tcplock);
     cb = &cb_table[soc];
+    acquire(&cb->lock);
     if (!cb->used) {
-        release(&tcplock);
+        release(&cb->lock);
         return -1;
     }
     if (cb->state != TCP_CB_STATE_LISTEN) {
-        release(&tcplock);
+        release(&cb->lock);
         return -1;
     }
     while ((entry = queue_pop(&cb->backlog)) == NULL) {
-        sleep(cb, &tcplock);
+        sleep(cb, &cb->lock);
     }
     backlog = entry->data;
     kfree((char*)entry);
@@ -684,7 +702,7 @@ int tcp_api_accept(int soc, struct sockaddr* addr, int* addrlen)
         sin->sin_addr = backlog->peer.addr;
         sin->sin_port = backlog->peer.port;
     }
-    release(&tcplock);
+    release(&cb->lock);
     return array_offset(cb_table, backlog);
 }
 
@@ -697,24 +715,24 @@ tcp_api_recv(int soc, uint8_t* buf, size_t size)
     if (TCP_SOCKET_ISINVALID(soc)) {
         return -1;
     }
-    acquire(&tcplock);
     cb = &cb_table[soc];
+    acquire(&cb->lock);
     if (!cb->used) {
-        release(&tcplock);
+        release(&cb->lock);
         return -1;
     }
     while (!(total = sizeof(cb->window) - cb->rcv.wnd)) {
         if (!TCP_CB_STATE_RX_ISREADY(cb)) {
-            release(&tcplock);
+            release(&cb->lock);
             return 0;
         }
-        sleep(cb, &tcplock);
+        sleep(cb, &cb->lock);
     }
     len = size < total ? size : total;
     memcpy(buf, cb->window, len);
     memmove(cb->window, cb->window + len, total - len);
     cb->rcv.wnd += len;
-    release(&tcplock);
+    release(&cb->lock);
     return len;
 }
 
@@ -726,19 +744,19 @@ tcp_api_send(int soc, uint8_t* buf, size_t len)
     if (TCP_SOCKET_ISINVALID(soc)) {
         return -1;
     }
-    acquire(&tcplock);
     cb = &cb_table[soc];
+    acquire(&cb->lock);
     if (!cb->used) {
-        release(&tcplock);
+        release(&cb->lock);
         return -1;
     }
     if (!TCP_CB_STATE_TX_ISREADY(cb)) {
-        release(&tcplock);
+        release(&cb->lock);
         return -1;
     }
     tcp_tx(cb, cb->snd.nxt, cb->rcv.nxt, TCP_FLG_ACK | TCP_FLG_PSH, buf, len);
     cb->snd.nxt += len;
-    release(&tcplock);
+    release(&cb->lock);
     return 0;
 }
 
@@ -746,7 +764,9 @@ int tcp_init(void)
 {
     struct tcp_cb* cb;
 
-    initlock(&tcplock, "tcplock");
+    initlock(&cb_table_lock, "cb_table_lock");
+    for (int i = 0; i < TCP_CB_TABLE_SIZE; ++i)
+        initlock(&cb_table[i].lock, "cb_lock");
     ip_add_protocol(IP_PROTOCOL_TCP, tcp_rx);
     return 0;
 }
