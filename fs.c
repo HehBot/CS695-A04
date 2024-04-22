@@ -25,18 +25,12 @@ static void itrunc(struct inode*);
 // only one device
 struct superblock sb;
 
-// fs inode functions
-struct inode_functions fs_i_func = { fs_ipopulate, fs_iupdate, fs_readi, fs_writei };
-
 extern struct {
     struct spinlock lock;
     struct proc proc[NPROC];
 } ptable;
 
 int namespace_depth(pid_ns_t* ancestor, pid_ns_t* curr);
-
-// Procfs inode functions
-struct inode_functions procfs_i_func = { proc_fs_ipopulate, proc_fs_iupdate, proc_fs_readi, proc_fs_writei };
 
 int proc_mountpt_inodes[20];
 
@@ -50,13 +44,6 @@ void add_mount(int inum)
     }
     panic("mount: no more mount points available");
 }
-
-// Unused functions
-int proc_fs_writei(struct inode* a, char* b, uint c, uint d)
-{
-    return 0;
-}
-void proc_fs_iupdate(struct inode* a) { }
 
 extern int root_proc_inum;
 int root_proc_blocks[10] = { 0 };
@@ -308,13 +295,6 @@ iget(uint dev, uint inum, struct inode* parent)
     ip->dev = dev;
     ip->inum = inum;
 
-    if (ip->dev == PROCDEV) {
-        ip->i_func = &procfs_i_func;
-    } else if (parent)
-        ip->i_func = parent->i_func;
-    else
-        ip->i_func = &fs_i_func; // fs is the default file system
-
     ip->ref = 1;
     ip->valid = 0;
     release(&icache.lock);
@@ -331,20 +311,6 @@ idup(struct inode* ip)
     ip->ref++;
     release(&icache.lock);
     return ip;
-}
-
-// Lock the given inode.
-// Reads the inode from disk if necessary.
-void ilock(struct inode* ip)
-{
-    if (ip == 0 || ip->ref < 1)
-        panic("ilock");
-
-    acquiresleep(&ip->lock);
-
-    if (ip->valid == 0) {
-        ip->i_func->ipopulate(ip);
-    }
 }
 
 void fs_ipopulate(struct inode* ip)
@@ -365,8 +331,7 @@ void fs_ipopulate(struct inode* ip)
     if (ip->type == 0)
         panic("ilock: no type");
 }
-
-void proc_fs_ipopulate(struct inode* ip)
+static void proc_fs_ipopulate(struct inode* ip)
 {
     struct proc* p;
     struct proc* curproc = myproc();
@@ -442,6 +407,30 @@ void proc_fs_ipopulate(struct inode* ip)
         brelse(bp);
     }
 }
+static void ipopulate(struct inode* ip)
+{
+    switch (ip->dev) {
+    case ROOTDEV:
+        fs_ipopulate(ip);
+        break;
+    case PROCDEV:
+        proc_fs_ipopulate(ip);
+        break;
+    }
+}
+
+// Lock the given inode.
+// Reads the inode from disk if necessary.
+void ilock(struct inode* ip)
+{
+    if (ip == 0 || ip->ref < 1)
+        panic("ilock");
+
+    acquiresleep(&ip->lock);
+
+    if (ip->valid == 0)
+        ipopulate(ip);
+}
 
 // Unlock the given inode.
 void iunlock(struct inode* ip)
@@ -477,7 +466,7 @@ void iput(struct inode* ip)
             // inode has no links and no other references: truncate and free.
             itrunc(ip);
             ip->type = 0;
-            ip->i_func->iupdate(ip);
+            iupdate(ip);
             ip->valid = 0;
         }
     }
@@ -567,7 +556,7 @@ itrunc(struct inode* ip)
     }
 
     ip->size = 0;
-    ip->i_func->iupdate(ip);
+    iupdate(ip);
 }
 
 // Copy stat information from inode.
@@ -584,7 +573,7 @@ void stati(struct inode* ip, struct stat* st)
 // PAGEBREAK!
 //  Read data from inode.
 //  Caller must hold ip->lock.
-int fs_readi(struct inode* ip, char* dst, uint off, uint n)
+static int fs_readi(struct inode* ip, char* dst, uint off, uint n)
 {
     uint tot, m;
     struct buf* bp;
@@ -609,7 +598,7 @@ int fs_readi(struct inode* ip, char* dst, uint off, uint n)
     return n;
 }
 
-int proc_fs_readi(struct inode* ip, char* dst, uint off, uint n)
+static int proc_fs_readi(struct inode* ip, char* dst, uint off, uint n)
 {
     uint tot, m;
     struct buf* bp;
@@ -619,7 +608,7 @@ int proc_fs_readi(struct inode* ip, char* dst, uint off, uint n)
     if (off + n > ip->size)
         n = ip->size - off;
 
-    ip->i_func->ipopulate(ip);
+    ipopulate(ip);
     for (tot = 0; tot < n; tot += m, off += m, dst += m) {
         bp = bget(ip->dev, ip->addrs[off / BSIZE]);
         m = min(n - tot, BSIZE - off % BSIZE);
@@ -628,11 +617,21 @@ int proc_fs_readi(struct inode* ip, char* dst, uint off, uint n)
     }
     return n;
 }
+int readi(struct inode* ip, char* dst, uint off, uint n)
+{
+    switch (ip->dev) {
+    case ROOTDEV:
+        return fs_readi(ip, dst, off, n);
+    case PROCDEV:
+        return proc_fs_readi(ip, dst, off, n);
+    }
+    return -1;
+}
 
 // PAGEBREAK!
 // Write data to inode.
 // Caller must hold ip->lock.
-int fs_writei(struct inode* ip, char* src, uint off, uint n)
+static int fs_writei(struct inode* ip, char* src, uint off, uint n)
 {
     uint tot, m;
     struct buf* bp;
@@ -658,9 +657,29 @@ int fs_writei(struct inode* ip, char* src, uint off, uint n)
 
     if (n > 0 && off > ip->size) {
         ip->size = off;
-        ip->i_func->iupdate(ip);
+        iupdate(ip);
     }
     return n;
+}
+int writei(struct inode* ip, char* src, uint off, uint n)
+{
+    switch (ip->dev) {
+    case ROOTDEV:
+        return fs_writei(ip, src, off, n);
+    case PROCDEV:
+        return 0;
+    }
+    return -1;
+}
+void iupdate(struct inode* ip)
+{
+    switch (ip->dev) {
+    case ROOTDEV:
+        fs_iupdate(ip);
+        return;
+    case PROCDEV:
+        return;
+    }
 }
 
 // PAGEBREAK!
@@ -683,7 +702,7 @@ dirlookup(struct inode* dp, char* name, uint* poff)
         panic("dirlookup not DIR");
 
     for (off = 0; off < dp->size; off += sizeof(de)) {
-        if (dp->i_func->readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+        if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
             panic("dirlookup read");
         if (de.inum == 0)
             continue;
@@ -719,7 +738,7 @@ int dirlink(struct inode* dp, char* name, uint inum)
 
     // Look for an empty dirent.
     for (off = 0; off < dp->size; off += sizeof(de)) {
-        if (dp->i_func->readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+        if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
             panic("dirlink read");
         if (de.inum == 0)
             break;
@@ -727,7 +746,7 @@ int dirlink(struct inode* dp, char* name, uint inum)
 
     strncpy(de.name, name, DIRSIZ);
     de.inum = inum;
-    if (dp->i_func->writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+    if (writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
         panic("dirlink");
 
     return 0;

@@ -13,9 +13,11 @@ struct file {
     int ref; // reference count
     char readable;
     char writable;
-    struct pipe* pipe;
-    struct inode* ip;
-    struct socket* socket;
+    union {
+        struct pipe* pipe;
+        struct inode* ip;
+        struct socket* socket;
+    };
     uint off;
 };
 
@@ -33,8 +35,6 @@ struct inode {
     int ref; // Reference count
     struct sleeplock lock; // protects everything below here
     int valid; // inode has been read from disk?
-
-    struct inode_functions* i_func;
 
     short type; // copy of disk inode
     short major;
