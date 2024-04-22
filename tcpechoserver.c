@@ -48,6 +48,5 @@ int main(int argc, char* argv[])
         send(acc, buf, ret);
     }
     close(soc);
-    close(acc);
     exit();
 }

@@ -63,6 +63,7 @@ struct tcp_txq_head {
 struct tcp_cb {
     uint8_t used;
     struct spinlock lock;
+
     uint8_t state;
     struct netif* iface;
     uint16_t port;
@@ -155,10 +156,9 @@ tcp_cb_clear(struct tcp_cb* cb)
         kfree((char*)entry);
         tcp_cb_clear(backlog);
     }
-    // need to be careful while zeroing out cb
-    // to ensure lock is not accidentally released
+
     cb->used = 0;
-    memset(&cb->lock + 1, 0, sizeof(*cb) - sizeof(cb->lock) - sizeof(cb->used));
+    cb->state = TCP_CB_STATE_CLOSED;
     return 0;
 }
 
@@ -186,6 +186,7 @@ tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf,
         self = ((struct netif_ip*)cb->iface)->unicast;
     else
         // FIXME what to do here?
+        // apparently TCP checksum modification is done by IP
         self = 0x100007f;
     peer = cb->peer.addr;
 
@@ -616,24 +617,22 @@ int tcp_api_connect(int soc, struct sockaddr* addr, int addrlen)
 
 int tcp_api_bind(int soc, struct sockaddr* addr, int addrlen)
 {
-    struct sockaddr_in* sin;
-    struct tcp_cb* cb;
-
     if (TCP_SOCKET_ISINVALID(soc)) {
         return -1;
     }
     if (addr->sa_family != AF_INET) {
         return -1;
     }
-    sin = (struct sockaddr_in*)addr;
+    struct sockaddr_in* sin = (struct sockaddr_in*)addr;
+
     acquire(&cb_table_lock);
-    for (cb = cb_table; cb < array_tailof(cb_table); cb++) {
-        if (cb->port == sin->sin_port) {
+    struct tcp_cb* cb = &cb_table[soc];
+    for (struct tcp_cb* tmp = cb_table; tmp < array_tailof(cb_table); tmp++) {
+        if (tmp->used && tmp != cb && tmp->port == sin->sin_port) {
             release(&cb_table_lock);
             return -1;
         }
     }
-    cb = &cb_table[soc];
     acquire(&cb->lock);
     release(&cb_table_lock);
     if (!cb->used || cb->state != TCP_CB_STATE_CLOSED) {
