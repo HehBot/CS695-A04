@@ -16,6 +16,6 @@
 #define FSSIZE 2000 // size of file system in blocks
 
 #define PROCDEV 22
-#define NPROCINODE 500
+#define MAXPROCFSMOUNT 20
 
 #endif // PARAM_H

@@ -32,11 +32,11 @@ extern struct {
 
 int namespace_depth(pid_ns_t* ancestor, pid_ns_t* curr);
 
-int proc_mountpt_inodes[20];
+int proc_mountpt_inodes[MAXPROCFSMOUNT];
 
-void add_mount(int inum)
+void add_procfs_mount(int inum)
 {
-    for (int i = 0; i < 20; i++) {
+    for (int i = 0; i < MAXPROCFSMOUNT; i++) {
         if (proc_mountpt_inodes[i] == 0) {
             proc_mountpt_inodes[i] = inum;
             return;
@@ -331,7 +331,7 @@ void fs_ipopulate(struct inode* ip)
     if (ip->type == 0)
         panic("ilock: no type");
 }
-static void proc_fs_ipopulate(struct inode* ip)
+static void procfs_ipopulate(struct inode* ip)
 {
     struct proc* p;
     struct proc* curproc = myproc();
@@ -414,7 +414,7 @@ static void ipopulate(struct inode* ip)
         fs_ipopulate(ip);
         break;
     case PROCDEV:
-        proc_fs_ipopulate(ip);
+        procfs_ipopulate(ip);
         break;
     }
 }
@@ -598,7 +598,7 @@ static int fs_readi(struct inode* ip, char* dst, uint off, uint n)
     return n;
 }
 
-static int proc_fs_readi(struct inode* ip, char* dst, uint off, uint n)
+static int procfs_readi(struct inode* ip, char* dst, uint off, uint n)
 {
     uint tot, m;
     struct buf* bp;
@@ -623,7 +623,7 @@ int readi(struct inode* ip, char* dst, uint off, uint n)
     case ROOTDEV:
         return fs_readi(ip, dst, off, n);
     case PROCDEV:
-        return proc_fs_readi(ip, dst, off, n);
+        return procfs_readi(ip, dst, off, n);
     }
     return -1;
 }
@@ -711,7 +711,7 @@ dirlookup(struct inode* dp, char* name, uint* poff)
             if (poff)
                 *poff = off;
             inum = de.inum;
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < MAXPROCFSMOUNT; i++) {
                 if (dp->inum == proc_mountpt_inodes[i] && namecmp(name, "proc") == 0) {
                     return iget(PROCDEV, inum, dp);
                 }

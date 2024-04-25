@@ -306,7 +306,7 @@ int sys_mount_procfs(void)
     struct inode* ip;
 
     begin_op();
-    if (argstr(0, &path) < 0 || (dp = namei(path)) == 0) {
+    if (argstr(0, &path) < 0 || (dp = namei(path)) == NULL) {
         end_op();
         return -1;
     }
@@ -321,7 +321,7 @@ int sys_mount_procfs(void)
     if (dirlink(dp, "proc", root_proc_inum) < 0)
         panic("mount: proc fs");
 
-    add_mount(dp->inum);
+    add_procfs_mount(dp->inum);
 
     iunlockput(dp);
     end_op();

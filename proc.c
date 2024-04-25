@@ -10,6 +10,9 @@ struct pid_ns {
     struct pid_ns* parent;
     struct proc* initproc;
     int next_pid;
+
+    struct spinlock lock;
+    int nr_proc;
 };
 
 struct {
@@ -22,42 +25,81 @@ extern int proc_inode_counter;
 
 static pid_ns_t root_pid_ns;
 
-static pid_ns_t pid_nss[32];
-static int pid_nss_free[32];
-static pid_ns_t* get_pid_ns(pid_ns_t* parent)
+struct {
+    struct spinlock lock; // protects table and each entry of free
+                          // individual table entries are protected by individual locks
+    pid_ns_t table[32];
+    int free[32];
+} pid_nss;
+
+static pid_ns_t* alloc_pid_ns(pid_ns_t* parent)
 {
-    if (!holding(&ptable.lock))
-        panic("get_pid_ns called without holding ptable.lock");
+    acquire(&pid_nss.lock);
     for (int i = 0; i < 32; ++i)
-        if (pid_nss_free[i]) {
-            pid_nss_free[i] = 0;
-            pid_nss[i].parent = parent;
-            pid_nss[i].next_pid = 1;
-            pid_nss[i].initproc = NULL;
-            return &pid_nss[i];
+        if (pid_nss.free[i]) {
+            pid_nss.free[i] = 0;
+            pid_nss.table[i].parent = parent;
+            pid_nss.table[i].next_pid = 1;
+            pid_nss.table[i].initproc = NULL;
+            pid_nss.table[i].nr_proc = 0;
+            release(&pid_nss.lock);
+            return &pid_nss.table[i];
         }
-    panic("get_pid_ns");
+    panic("alloc_pid_ns");
 }
-void free_pid_ns(pid_ns_t* p)
+static void pid_ns_put(pid_ns_t* p)
 {
-    if (!holding(&ptable.lock))
-        panic("free_pid_ns called without holding ptable.lock");
-    int i = p - &pid_nss[0];
-    if (pid_nss_free[i])
-        panic("free_pid_ns");
-    pid_nss_free[i] = 1;
+    int free = 0;
+    int i = p - &pid_nss.table[0];
+    acquire(&p->lock);
+    p->nr_proc--;
+    if (p->nr_proc == 0)
+        free = 1;
+    release(&p->lock);
+
+    if (free) {
+        acquire(&pid_nss.lock);
+        pid_nss.free[i] = 1;
+        release(&pid_nss.lock);
+    }
+}
+static pid_ns_t* pid_ns_get(pid_ns_t* p)
+{
+    acquire(&p->lock);
+    p->nr_proc++;
+    release(&p->lock);
+    return p;
+}
+static int pid_ns_next_pid(pid_ns_t* p)
+{
+    acquire(&p->lock);
+    int l = p->next_pid++;
+    release(&p->lock);
+    return l;
 }
 
 int namespace_depth(pid_ns_t* ancestor, pid_ns_t* curr)
 {
+    if (curr == NULL || ancestor == NULL)
+        return -1;
+    // panic("wtf");
     int i = 0;
-    while (curr != NULL) {
-        if (curr == ancestor)
+    acquire(&curr->lock);
+    while (1) {
+        if (curr == ancestor) {
+            release(&curr->lock);
             return i;
+        }
         i++;
-        curr = curr->parent;
+        pid_ns_t* new = curr->parent;
+        if (new == NULL) {
+            release(&curr->lock);
+            return -1;
+        }
+        acquire(&new->lock);
+        release(&curr->lock);
+        curr = new;
     }
-    return -1;
 }
 
 extern void forkret(void);
@@ -71,8 +113,12 @@ void pinit(void)
     root_pid_ns.initproc = NULL;
     root_pid_ns.next_pid = 1;
 
-    for (int i = 0; i < 32; ++i)
-        pid_nss_free[i] = 1;
+    for (int i = 0; i < 32; ++i) {
+        initlock(&pid_nss.table[i].lock, "pid_nss.table[i]");
+        pid_nss.free[i] = 1;
+        root_proc_inum = ++proc_inode_counter;
+    }
+    initlock(&pid_nss.lock, "pid_nss.lock");
     initlock(&ptable.lock, "ptable");
 }
 
@@ -204,10 +250,11 @@ void userinit(void)
     p->state = RUNNABLE;
 
     // set up root pid ns
-    p->pid_ns = p->child_pid_ns = &root_pid_ns;
-    p->pid_ns->initproc = p;
+    p->pid_ns = p->child_pid_ns = pid_ns_get(&root_pid_ns);
 
-    p->pid[0] = (p->pid_ns->next_pid++);
+    p->pid_ns->initproc = p;
+    p->pid[0] = pid_ns_next_pid(p->pid_ns);
+
     p->global_pid = p->pid[0];
 
     release(&ptable.lock);
@@ -248,9 +295,10 @@ int fork(void)
     }
 
     // Set pids
-    np->pid_ns = np->child_pid_ns = curproc->child_pid_ns;
+    np->pid_ns = np->child_pid_ns = pid_ns_get(curproc->child_pid_ns);
 
     int entering_new_pid_ns = 0, new_pid_ns_init = 0;
+    acquire(&np->pid_ns->lock);
     if (np->pid_ns != curproc->pid_ns) {
         // child will be in a different pid ns to parent
         entering_new_pid_ns = 1;
@@ -261,15 +309,26 @@ int fork(void)
             np->pid_ns->initproc = np;
         }
     }
+    release(&np->pid_ns->lock);
 
     pid_ns_t* iter = np->pid_ns;
     int i = 0;
-    while (iter != NULL) {
-        np->pid[i] = iter->next_pid++;
-        iter = iter->parent;
-        i++;
+    if (iter != NULL) {
+        acquire(&iter->lock);
+        while (1) {
+            np->pid[i] = iter->next_pid++;
+            pid_ns_t* next = iter->parent;
+            if (next == NULL) {
+                release(&iter->lock);
+                break;
+            }
+            acquire(&next->lock);
+            release(&iter->lock);
+            iter = next;
+            i++;
+        }
     }
-    np->global_pid = np->pid[i - 1];
+    np->global_pid = np->pid[i];
 
     // Copy process state from proc.
     if ((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0) {
@@ -328,8 +387,6 @@ void exit(void)
         if (curproc->pid_ns == &root_pid_ns)
             panic("init exiting");
 
-        pid_ns_t* discard = curproc->pid_ns;
-
         acquire(&ptable.lock);
         for (struct proc* p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
             if (p->state != UNUSED) {
@@ -338,13 +395,12 @@ void exit(void)
                     continue;
 
                 // move process to global namespace
-                p->pid_ns = &root_pid_ns;
+                // can't call pid_ns_put yet as the process may be running on another cpu
                 p->pid[0] = p->global_pid;
                 p->parent = root_pid_ns.initproc;
                 p->killed = 1;
             }
         }
-        free_pid_ns(discard);
         release(&ptable.lock);
     }
 
@@ -356,12 +412,12 @@ void exit(void)
         }
     }
 
+    pid_ns_put(curproc->pid_ns);
+
     begin_op();
     iput(curproc->cwd);
     iput(curproc->root);
     end_op();
-    curproc->cwd = NULL;
-    curproc->root = NULL;
 
     acquire(&ptable.lock);
 
@@ -520,7 +576,6 @@ void forkret(void)
         first = 0;
         iinit(ROOTDEV);
         initlog(ROOTDEV);
-        root_proc_inum = ++proc_inode_counter;
     }
 
     // Return to "caller", actually trapret (see allocproc).
@@ -665,10 +720,7 @@ void procdump(void)
 int unshare(int arg)
 {
     struct proc* curproc = myproc();
-    if (arg & NEWNS_PID) {
-        acquire(&ptable.lock);
-        curproc->child_pid_ns = get_pid_ns(curproc->pid_ns);
-        release(&ptable.lock);
-    }
+    if (arg & NEWNS_PID)
+        curproc->child_pid_ns = alloc_pid_ns(curproc->pid_ns);
     return 0;
 }
