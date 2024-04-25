@@ -1,12 +1,16 @@
 #include "defs.h"
-#include "file.h"
 #include "mmu.h"
 #include "param.h"
 #include "proc.h"
 #include "spinlock.h"
-#include "stat.h"
 #include "types.h"
 #include "x86.h"
+
+struct pid_ns {
+    struct pid_ns* parent;
+    struct proc* initproc;
+    int next_pid;
+};
 
 struct {
     struct spinlock lock;
@@ -16,7 +20,7 @@ struct {
 int root_proc_inum;
 extern int proc_inode_counter;
 
-static pid_ns_t* root_pid_ns;
+static pid_ns_t root_pid_ns;
 
 static pid_ns_t pid_nss[32];
 static int pid_nss_free[32];
@@ -63,6 +67,10 @@ static void wakeup1(void* chan);
 
 void pinit(void)
 {
+    root_pid_ns.parent = NULL;
+    root_pid_ns.initproc = NULL;
+    root_pid_ns.next_pid = 1;
+
     for (int i = 0; i < 32; ++i)
         pid_nss_free[i] = 1;
     initlock(&ptable.lock, "ptable");
@@ -196,13 +204,11 @@ void userinit(void)
     p->state = RUNNABLE;
 
     // set up root pid ns
-    p->pid_ns = p->child_pid_ns = get_pid_ns(NULL);
+    p->pid_ns = p->child_pid_ns = &root_pid_ns;
     p->pid_ns->initproc = p;
 
     p->pid[0] = (p->pid_ns->next_pid++);
     p->global_pid = p->pid[0];
-
-    root_pid_ns = p->pid_ns;
 
     release(&ptable.lock);
 }
@@ -319,8 +325,10 @@ void exit(void)
     // init process of a namespace is exiting
     if (curproc == curproc->pid_ns->initproc) {
         // if root namespace, panic
-        if (curproc->pid_ns->parent == NULL)
+        if (curproc->pid_ns == &root_pid_ns)
             panic("init exiting");
+
+        pid_ns_t* discard = curproc->pid_ns;
 
         acquire(&ptable.lock);
         for (struct proc* p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
@@ -329,55 +337,15 @@ void exit(void)
                 if (i == -1)
                     continue;
 
-                if (p->pid[0] == 1)
-                    free_pid_ns(p->pid_ns);
-
                 // move process to global namespace
-                p->pid_ns = root_pid_ns;
+                p->pid_ns = &root_pid_ns;
                 p->pid[0] = p->global_pid;
-                p->parent = root_pid_ns->initproc;
-                p->state = ZOMBIE;
-                p->killed = 2;
-            }
-        }
-        // All have to be ZOMBIEfied before the lock is released as
-        // else their pid_ns could potentially have been freed
-
-        for (struct proc* p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-            if (p->state == ZOMBIE && p->killed == 2) {
-                release(&ptable.lock);
-                for (fd = 0; fd < NOFILE; fd++) {
-                    if (p->ofile[fd]) {
-                        fileclose(p->ofile[fd]);
-                        p->ofile[fd] = NULL;
-                    }
-                }
-                begin_op();
-                // It's possible that a process was an EMBRYO
-                // when it was ZOMBIEfied due to ns deletion
-                // In this case if p->cwd != NULL then its cwd is set up
-                // and the inode lock takes care of races
-                if (p->cwd != NULL)
-                    iput(p->cwd);
-                // similar to above
-                if (p->root != NULL)
-                    iput(p->root);
-                end_op();
-                p->cwd = NULL;
-                p->root = NULL;
-
-                acquire(&ptable.lock);
-
+                p->parent = root_pid_ns.initproc;
                 p->killed = 1;
-
-                wakeup1(root_pid_ns->initproc);
             }
         }
-
-        // FIXME multiprocessor
-        // sometimes curproc is RUNNING here instead of ZOMBIE
-
-        sched();
+        free_pid_ns(discard);
+        release(&ptable.lock);
     }
 
     // Close all open files.

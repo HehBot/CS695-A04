@@ -50,11 +50,7 @@ enum procstate { UNUSED,
 
 struct proc;
 
-typedef struct pid_ns {
-    struct pid_ns* parent;
-    int next_pid;
-    struct proc* initproc;
-} pid_ns_t;
+typedef struct pid_ns pid_ns_t;
 
 // Per-process state
 struct proc {
