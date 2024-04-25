@@ -130,6 +130,7 @@ int wait(void);
 void wakeup(void*);
 void yield(void);
 int unshare(int);
+int cpu_restrict(int, int);
 
 // swtch.S
 void swtch(struct context**, struct context*);

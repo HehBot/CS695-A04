@@ -41,6 +41,7 @@
 #define SYS_dup2 35
 #define SYS_getcwd 36
 
-#define SYS_mount_procfs 35
+#define SYS_mount_procfs 37
+#define SYS_cpu_restrict 38
 
 #endif // SYSCALL_H

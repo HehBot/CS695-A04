@@ -88,3 +88,14 @@ int sys_unshare(void)
         return -1;
     return unshare(arg);
 }
+
+int sys_cpu_restrict(void)
+{
+    int pid;
+    int mask;
+    if (argint(0, &pid) < 0 || argint(1, &mask) < 0)
+        return -1;
+    if((uint)mask >= (1<<ncpu))
+        return -1;
+    return cpu_restrict(pid, mask);
+}

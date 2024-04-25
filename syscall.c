@@ -114,6 +114,7 @@ extern int sys_dup2(void);
 extern int sys_getcwd(void);
 
 extern int sys_mount_procfs(void);
+extern int sys_cpu_restrict(void);
 
 static int (*syscalls[])(void) = {
     [SYS_fork] = sys_fork,
@@ -155,6 +156,7 @@ static int (*syscalls[])(void) = {
     [SYS_dup2] = sys_dup2,
     [SYS_getcwd] = sys_getcwd,
     [SYS_mount_procfs] = sys_mount_procfs,
+    [SYS_cpu_restrict] = sys_cpu_restrict,
 };
 
 void syscall(void)
