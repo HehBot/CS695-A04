@@ -77,6 +77,8 @@ struct proc {
     char name[16]; // Process name (debugging)
 
     int procfs_nums[5];
+
+    int cpu_mask;
 };
 
 // Process memory is laid out contiguously, low addresses first:

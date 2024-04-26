@@ -48,6 +48,7 @@ int dup2(int, int);
 char* getcwd(char*, int);
 
 int mount_procfs(char const*);
+int cpu_restrict(int, int);
 
 // ulib.c
 int stat(char const*, struct stat*);

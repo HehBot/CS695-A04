@@ -58,3 +58,4 @@ SYSCALL(unshare)
 SYSCALL(chroot)
 
 SYSCALL(mount_procfs)
+SYSCALL(cpu_restrict)

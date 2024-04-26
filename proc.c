@@ -212,6 +212,8 @@ found:
     p->procfs_nums[0] = ++proc_inode_counter;
     p->procfs_nums[1] = ++proc_inode_counter;
 
+    p->cpu_mask = ((1 << ncpu) - 1);
+
     return p;
 }
 
@@ -498,6 +500,7 @@ void scheduler(void)
     struct proc* p;
     struct cpu* c = mycpu();
     c->proc = 0;
+    int cpu_id = cpuid();
 
     for (;;) {
         // Enable interrupts on this processor.
@@ -506,8 +509,10 @@ void scheduler(void)
         // Loop over process table looking for process to run.
         acquire(&ptable.lock);
         for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-            if (p->state != RUNNABLE)
+            if (p->state != RUNNABLE || ((p->cpu_mask & (1 << cpu_id)) == 0))
                 continue;
+
+            // cprintf("PID : %d, cpuID: %d\n", p->pid[0], cpu_id);
 
             // Switch to chosen process.  It is the process's job
             // to release ptable.lock and then reacquire it
@@ -723,4 +728,27 @@ int unshare(int arg)
     if (arg & NEWNS_PID)
         curproc->child_pid_ns = alloc_pid_ns(curproc->pid_ns);
     return 0;
+}
+
+int cpu_restrict(int pid, int mask)
+{
+    struct proc* p;
+    struct proc* curproc = myproc();
+
+    acquire(&ptable.lock);
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->state != UNUSED) {
+            int i = namespace_depth(curproc->pid_ns, p->pid_ns);
+            if (i == -1)
+                continue;
+
+            if (p->pid[i] == pid) {
+                p->cpu_mask = mask;
+                release(&ptable.lock);
+                return 0;
+            }
+        }
+    }
+    release(&ptable.lock);
+    return -1;
 }

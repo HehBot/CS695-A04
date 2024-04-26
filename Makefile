@@ -218,6 +218,7 @@ NET_UPROGS=\
 NS_UPROGS=\
 	_pid_ns_forktest\
 	_procfs_test\
+	_cpu_restrict_test\
 
 UPROGS += $(NET_UPROGS) $(NS_UPROGS)
 
@@ -256,7 +257,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 1
+CPUS := 4
 endif
 
 QEMUNET = -netdev user,id=n1,hostfwd=udp::10007-:7,hostfwd=tcp::10007-:7 -device e1000,netdev=n1 -object filter-dump,id=f1,netdev=n1,file=n1.pcap \
