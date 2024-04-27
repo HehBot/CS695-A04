@@ -44,4 +44,6 @@
 #define SYS_mount_procfs 37
 #define SYS_cpu_restrict 38
 
+#define SYS_veth 39
+
 #endif // SYSCALL_H

@@ -4,8 +4,10 @@
 #define NETDEV_TYPE_LOOPBACK (0x0000)
 #define NETDEV_TYPE_ETHERNET (0x0001)
 #define NETDEV_TYPE_SLIP (0x0002)
+#define NETDEV_TYPE_VETH (0x0003)
 
 #include "if.h"
+#include "spinlock.h"
 
 #define NETDEV_FLAG_BROADCAST IFF_BROADCAST
 #define NETDEV_FLAG_MULTICAST IFF_MULTICAST
@@ -58,5 +60,14 @@ struct netdev {
     struct netdev_ops* ops;
     void* priv;
 };
+
+typedef struct net_ns {
+    struct netdev* devices;
+    struct netdev* lo;
+    int next_index;
+
+    struct spinlock lock; // protects nr_proc
+    int nr_proc;
+} net_ns_t;
 
 #endif // NET_H

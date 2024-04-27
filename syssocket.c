@@ -3,6 +3,7 @@
 
 #include "defs.h"
 #include "file.h"
+#include "proc.h"
 #include "types.h"
 
 int sys_socket(void)
@@ -134,4 +135,15 @@ int sys_sendto(void)
     if (f->type != FD_SOCKET)
         return -1;
     return socketsendto(f->socket, p, n, addr, addrlen);
+}
+
+int sys_veth(void)
+{
+    int p1, p2;
+    struct proc* proc1;
+    struct proc* proc2;
+    if (argint(0, &p1) < 0 || argint(1, &p2) < 0 || ((proc1 = getproc(p1)) == NULL) || ((proc2 = getproc(p2)) == NULL))
+        return -1;
+    veth_init(proc1->net_ns, proc2->net_ns);
+    return 0;
 }

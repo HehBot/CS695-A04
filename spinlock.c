@@ -15,6 +15,23 @@ void initlock(struct spinlock* lk, char* name)
     lk->cpu = 0;
 }
 
+int tryacquire(struct spinlock* lk)
+{
+    pushcli();
+    if (holding(lk))
+        panic("tryacquire");
+
+    int held = (xchg(&lk->locked, 1) == 0);
+    __sync_synchronize();
+
+    if (held) {
+        lk->cpu = mycpu();
+        getcallerpcs(&lk, lk->pcs);
+    } else
+        popcli();
+    return held;
+}
+
 // Acquire the lock.
 // Loops (spins) until the lock is acquired.
 // Holding a lock for a long time may cause

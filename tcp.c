@@ -165,8 +165,8 @@ tcp_cb_clear(struct tcp_cb* cb)
 static ssize_t
 tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf, size_t len)
 {
-    // shouldn't be static but removing it causes kernel stack overflow
-    static uint8_t segment[1500];
+    // possible kernel stack overflow
+    uint8_t segment[1500];
     struct tcp_hdr* hdr;
     ip_addr_t self, peer;
 

@@ -6,6 +6,7 @@
 #include "if.h"
 #include "ip.h"
 #include "net.h"
+#include "proc.h"
 #include "socket.h"
 #include "sockio.h"
 #include "types.h"
@@ -138,17 +139,19 @@ int socketioctl(struct socket* s, int req, void* arg)
     struct netdev* dev;
     struct netif* iface;
 
+    net_ns_t* net_ns = myproc()->net_ns;
+
     switch (req) {
     case SIOCGIFINDEX:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_name(ifreq->ifr_name);
+        dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
         ifreq->ifr_ifindex = dev->index;
         break;
     case SIOCGIFNAME:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_index(ifreq->ifr_ifindex);
+        dev = netdev_by_index(net_ns, ifreq->ifr_ifindex);
         if (!dev)
             return -1;
         strncpy(ifreq->ifr_name, dev->name, sizeof(ifreq->ifr_name));
@@ -158,7 +161,7 @@ int socketioctl(struct socket* s, int req, void* arg)
         break;
     case SIOCGIFHWADDR:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_name(ifreq->ifr_name);
+        dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
         if (dev->type != NETDEV_TYPE_ETHERNET)
@@ -170,14 +173,14 @@ int socketioctl(struct socket* s, int req, void* arg)
         break;
     case SIOCGIFFLAGS:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_name(ifreq->ifr_name);
+        dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
         ifreq->ifr_flags = dev->flags;
         break;
     case SIOCSIFFLAGS:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_name(ifreq->ifr_name);
+        dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
         if ((dev->flags & IFF_UP) != (ifreq->ifr_flags & IFF_UP)) {
@@ -189,7 +192,7 @@ int socketioctl(struct socket* s, int req, void* arg)
         break;
     case SIOCGIFADDR:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_name(ifreq->ifr_name);
+        dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
         iface = netdev_get_netif(dev, ifreq->ifr_addr.sa_family);
@@ -199,7 +202,7 @@ int socketioctl(struct socket* s, int req, void* arg)
         break;
     case SIOCSIFADDR:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_name(ifreq->ifr_name);
+        dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
         iface = netdev_get_netif(dev, ifreq->ifr_addr.sa_family);
@@ -215,7 +218,7 @@ int socketioctl(struct socket* s, int req, void* arg)
         break;
     case SIOCGIFNETMASK:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_name(ifreq->ifr_name);
+        dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
         iface = netdev_get_netif(dev, ifreq->ifr_addr.sa_family);
@@ -225,7 +228,7 @@ int socketioctl(struct socket* s, int req, void* arg)
         break;
     case SIOCSIFNETMASK:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_name(ifreq->ifr_name);
+        dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
         iface = netdev_get_netif(dev, ifreq->ifr_addr.sa_family);
@@ -236,7 +239,7 @@ int socketioctl(struct socket* s, int req, void* arg)
         break;
     case SIOCGIFBRDADDR:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_name(ifreq->ifr_name);
+        dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
         iface = netdev_get_netif(dev, ifreq->ifr_addr.sa_family);
@@ -249,7 +252,7 @@ int socketioctl(struct socket* s, int req, void* arg)
         break;
     case SIOCGIFMTU:
         ifreq = (struct ifreq*)arg;
-        dev = netdev_by_name(ifreq->ifr_name);
+        dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
         ifreq->ifr_mtu = dev->mtu;

@@ -5,6 +5,7 @@
 #include "ethernet.h"
 #include "ip.h"
 #include "net.h"
+#include "proc.h"
 #include "spinlock.h"
 #include "types.h"
 
@@ -249,7 +250,8 @@ ip_netif_by_addr(ip_addr_t* addr)
     struct netdev* dev;
     struct netif* entry;
 
-    for (dev = netdev_root(); dev; dev = dev->next) {
+    extern net_ns_t first_net_ns;
+    for (dev = myproc()->net_ns->devices; dev; dev = dev->next) {
         for (entry = dev->ifs; entry; entry = entry->next) {
             if (entry->family == NETIF_FAMILY_IPV4 && ((struct netif_ip*)entry)->unicast == *addr) {
                 return entry;

@@ -37,14 +37,14 @@ NET_OBJS = \
 	ethernet.o\
 	icmp.o\
 	ip.o\
+	loopback.o\
 	mt19937ar.o\
 	net.o\
 	socket.o\
-	sysnet.o\
 	syssocket.o\
 	tcp.o\
 	udp.o\
-	loopback.o\
+	veth.o\
 
 OBJS += $(NET_OBJS)
 
@@ -212,6 +212,7 @@ NS_UPROGS=\
 	pid_ns_forktest\
 	procfs_test\
 	cpu_restrict_test\
+	veth_test\
 
 UPROGS += $(NET_UPROGS) $(NS_UPROGS)
 export UPROGS
@@ -259,7 +260,7 @@ endif
 QEMUNET = -netdev user,id=n1,hostfwd=udp::10007-:7,hostfwd=tcp::10007-:7 -device e1000,netdev=n1 -object filter-dump,id=f1,netdev=n1,file=n1.pcap \
           -netdev tap,id=n2,ifname=tap0 -device e1000,netdev=n2 -object filter-dump,id=f2,netdev=n2,file=n2.pcap
 
-QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp cpus=$(CPUS),cores=1,threads=1,sockets=$(CPUS) -m 512 $(QEMUEXTRA) $(QEMUNET)
+QEMUOPTS = -no-reboot -no-shutdown -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp cpus=$(CPUS),cores=1,threads=1,sockets=$(CPUS) -m 512 $(QEMUEXTRA) $(QEMUNET)
 
 qemu: fs xv6.img
 	$(QEMU) -serial mon:stdio $(QEMUOPTS)

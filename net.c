@@ -3,6 +3,7 @@
 
 #include "defs.h"
 #include "net.h"
+#include "param.h"
 
 struct netproto {
     struct netproto* next;
@@ -10,46 +11,90 @@ struct netproto {
     void (*handler)(uint8_t* packet, size_t plen, struct netdev* dev);
 };
 
-static struct netdev* devices;
+struct {
+    net_ns_t table[MAXNETNS];
+
+    struct spinlock lock;
+    int used[MAXNETNS];
+} net_nss = { 0 };
+
+net_ns_t first_net_ns = { 0 };
+
 static struct netproto* protocols;
 
-struct netdev*
-netdev_root(void)
+net_ns_t* alloc_net_ns(void)
 {
-    return devices;
+    acquire(&net_nss.lock);
+
+    for (int i = 0; i < MAXNETNS; ++i) {
+        if (!net_nss.used[i]) {
+            net_ns_t* net_ns = &net_nss.table[i];
+            net_nss.used[i] = 1;
+            net_ns->devices = net_ns->lo = NULL;
+            net_ns->next_index = net_ns->nr_proc = 0;
+            lo_init(net_ns);
+            release(&net_nss.lock);
+            return net_ns;
+        }
+    }
+    release(&net_nss.lock);
+    return NULL;
+}
+net_ns_t* get_net_ns(net_ns_t* net_ns)
+{
+    acquire(&net_ns->lock);
+    net_ns->nr_proc++;
+    release(&net_ns->lock);
+    return net_ns;
+}
+void put_net_ns(net_ns_t* net_ns)
+{
+    acquire(&net_ns->lock);
+    net_ns->nr_proc--;
+    if (net_ns->nr_proc == 0) {
+        if (net_ns == &first_net_ns)
+            panic("initial net_ns empty");
+        acquire(&net_nss.lock);
+        net_nss.used[net_ns - &net_nss.table[0]] = 0;
+        release(&net_nss.lock);
+    }
+    release(&net_ns->lock);
 }
 
 struct netdev*
 netdev_alloc(void (*setup)(struct netdev*))
 {
     struct netdev* dev;
-    static unsigned int index = 0;
 
     dev = (struct netdev*)kalloc();
     if (!dev) {
         return NULL;
     }
     memset(dev, 0, sizeof(struct netdev));
-    dev->index = index++;
-    snprintf(dev->name, sizeof(dev->name), "net%d", dev->index);
     setup(dev);
     return dev;
 }
 
-int netdev_register(struct netdev* dev)
+int netdev_register(net_ns_t* net_ns, struct netdev* dev)
 {
+    dev->index = net_ns->next_index++;
+
+    if (dev->name[0] == '\0')
+        snprintf(dev->name, sizeof(dev->name), "net%d", dev->index);
+
+    dev->next = net_ns->devices;
+    net_ns->devices = dev;
+
     cprintf("[net] netdev_register: <%s>\n", dev->name);
-    dev->next = devices;
-    devices = dev;
     return 0;
 }
 
 struct netdev*
-netdev_by_index(int index)
+netdev_by_index(net_ns_t* net_ns, int index)
 {
     struct netdev* dev;
 
-    for (dev = devices; dev; dev = dev->next)
+    for (dev = net_ns->devices; dev; dev = dev->next)
         if (dev->index == index)
             return dev;
 
@@ -57,11 +102,11 @@ netdev_by_index(int index)
 }
 
 struct netdev*
-netdev_by_name(const char* name)
+netdev_by_name(net_ns_t* net_ns, const char* name)
 {
     struct netdev* dev;
 
-    for (dev = devices; dev; dev = dev->next)
+    for (dev = net_ns->devices; dev; dev = dev->next)
         if (strcmp(dev->name, name) == 0)
             return dev;
 
@@ -138,12 +183,40 @@ int netproto_register(unsigned short type, void (*handler)(uint8_t* packet, size
 
 void netinit(void)
 {
+    lo_init(&first_net_ns);
+
     arp_init();
     ip_init();
     icmp_init();
     udp_init();
     tcp_init();
+}
 
-    void setup_lo(void);
-    setup_lo();
+void net_virt_intr(void)
+{
+    lo_intr_handle(first_net_ns.lo);
+    struct netdev* dev = first_net_ns.devices;
+    while (dev != NULL) {
+        if (dev->type == NETDEV_TYPE_LOOPBACK)
+            lo_intr_handle(dev);
+        else if (dev->type == NETDEV_TYPE_VETH)
+            veth_intr_handle(dev);
+        dev = dev->next;
+    }
+
+    acquire(&net_nss.lock);
+    void lo_intr_handle(struct netdev*);
+    for (int i = 0; i < MAXNETNS; ++i) {
+        if (net_nss.used[i]) {
+            struct netdev* dev = net_nss.table[i].devices;
+            while (dev != NULL) {
+                if (dev->type == NETDEV_TYPE_LOOPBACK)
+                    lo_intr_handle(dev);
+                else if (dev->type == NETDEV_TYPE_VETH)
+                    veth_intr_handle(dev);
+                dev = dev->next;
+            }
+        }
+    }
+    release(&net_nss.lock);
 }

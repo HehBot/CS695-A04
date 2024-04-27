@@ -15,6 +15,7 @@ int workload()
 
 int main()
 {
+    printf(1, "Start: %d\n", uptime());
 
     int c1 = fork();
     if (c1 == 0) {
@@ -42,12 +43,13 @@ int main()
     }
     cpu_restrict(c2, 2);
 
-    sleep(100);
     int p = getpid();
     printf(1, "[%d] P: start\n", p);
     int w = workload();
     int utime = uptime();
     printf(1, "[%d] [%d] P: finish %d\n", utime, p, w);
 
+    while (wait() > 0)
+        ;
     exit();
 }

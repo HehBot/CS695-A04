@@ -52,6 +52,8 @@ struct proc;
 
 typedef struct pid_ns pid_ns_t;
 
+typedef struct net_ns net_ns_t;
+
 // Per-process state
 struct proc {
     uint sz; // Size of process memory (bytes)
@@ -63,6 +65,8 @@ struct proc {
     pid_ns_t* child_pid_ns;
     int global_pid;
     int pid[8]; // Process IDs by namespace
+
+    net_ns_t* net_ns;
 
     struct proc* parent; // Parent process
     struct trapframe* tf; // Trap frame for current syscall

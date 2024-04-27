@@ -1,6 +1,8 @@
 #ifndef ETHERNET_H
 #define ETHERNET_H
 
+#include "types.h"
+
 #define ETHERNET_HDR_SIZE 14
 #define ETHERNET_TRL_SIZE 4
 #define ETHERNET_FRAME_SIZE_MIN 64

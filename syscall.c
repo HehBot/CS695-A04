@@ -116,6 +116,8 @@ extern int sys_getcwd(void);
 extern int sys_mount_procfs(void);
 extern int sys_cpu_restrict(void);
 
+extern int sys_veth(void);
+
 static int (*syscalls[])(void) = {
     [SYS_fork] = sys_fork,
     [SYS_exit] = sys_exit,
@@ -157,6 +159,7 @@ static int (*syscalls[])(void) = {
     [SYS_getcwd] = sys_getcwd,
     [SYS_mount_procfs] = sys_mount_procfs,
     [SYS_cpu_restrict] = sys_cpu_restrict,
+    [SYS_veth] = sys_veth,
 };
 
 void syscall(void)

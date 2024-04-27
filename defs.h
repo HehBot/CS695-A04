@@ -7,6 +7,7 @@ struct buf;
 struct context;
 struct file;
 struct inode;
+typedef struct net_ns net_ns_t;
 struct pipe;
 struct proc;
 struct rtcdate;
@@ -131,11 +132,13 @@ void wakeup(void*);
 void yield(void);
 int unshare(int);
 int cpu_restrict(int, int);
+struct proc* getproc(int pid);
 
 // swtch.S
 void swtch(struct context**, struct context*);
 
 // spinlock.c
+int tryacquire(struct spinlock*);
 void acquire(struct spinlock*);
 void getcallerpcs(void*, uint*);
 int holding(struct spinlock*);
@@ -267,7 +270,13 @@ int e1000_init(struct pci_func* pcif);
 void e1000intr(void);
 
 // loopback.c
-void lo_rx(void);
+void lo_init(net_ns_t*);
+void lo_intr_handle(struct netdev*);
+
+// veth.c
+void veth_init(net_ns_t*, net_ns_t*);
+int veth(int, int);
+void veth_intr_handle(struct netdev*);
 
 // ethernet.c
 int ethernet_addr_pton(const char* p, uint8_t* n);
@@ -297,16 +306,21 @@ void init_genrand(unsigned long s);
 unsigned long genrand_int32(void);
 
 // net.c
-struct netdev* netdev_root(void);
+net_ns_t* alloc_net_ns(void);
+net_ns_t* get_net_ns(net_ns_t*);
+void put_net_ns(net_ns_t*);
+
 struct netdev* netdev_alloc(void (*setup)(struct netdev*));
-int netdev_register(struct netdev* dev);
-struct netdev* netdev_by_index(int index);
-struct netdev* netdev_by_name(const char* name);
+int netdev_register(net_ns_t*, struct netdev* dev);
+struct netdev* netdev_by_index(net_ns_t*, int index);
+struct netdev* netdev_by_name(net_ns_t*, const char* name);
 void netdev_receive(struct netdev* dev, uint16_t type, uint8_t* packet, unsigned int plen);
 int netdev_add_netif(struct netdev* dev, struct netif* netif);
 struct netif* netdev_get_netif(struct netdev* dev, int family);
 int netproto_register(unsigned short type, void (*handler)(uint8_t* packet, size_t plen, struct netdev* dev));
 void netinit(void);
+
+void net_virt_intr(void);
 
 // tcp.c
 int tcp_init(void);

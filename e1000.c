@@ -278,7 +278,10 @@ int e1000_init(struct pci_func* pcif)
     netdev->ops = &e1000_ops;
     netdev->flags |= NETDEV_FLAG_RUNNING;
     // Register netdev
-    netdev_register(netdev);
+    {
+        extern net_ns_t first_net_ns;
+        netdev_register(&first_net_ns, netdev);
+    }
     dev->netdev = netdev;
     // Link to e1000 device list
     dev->next = devices;

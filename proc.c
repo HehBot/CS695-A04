@@ -1,5 +1,6 @@
 #include "defs.h"
 #include "mmu.h"
+#include "net.h"
 #include "param.h"
 #include "proc.h"
 #include "spinlock.h"
@@ -28,14 +29,14 @@ static pid_ns_t root_pid_ns;
 struct {
     struct spinlock lock; // protects table and each entry of free
                           // individual table entries are protected by individual locks
-    pid_ns_t table[32];
-    int free[32];
+    pid_ns_t table[MAXPIDNS];
+    int free[MAXPIDNS];
 } pid_nss;
 
 static pid_ns_t* alloc_pid_ns(pid_ns_t* parent)
 {
     acquire(&pid_nss.lock);
-    for (int i = 0; i < 32; ++i)
+    for (int i = 0; i < MAXPIDNS; ++i)
         if (pid_nss.free[i]) {
             pid_nss.free[i] = 0;
             pid_nss.table[i].parent = parent;
@@ -113,7 +114,7 @@ void pinit(void)
     root_pid_ns.initproc = NULL;
     root_pid_ns.next_pid = 1;
 
-    for (int i = 0; i < 32; ++i) {
+    for (int i = 0; i < MAXPIDNS; ++i) {
         initlock(&pid_nss.table[i].lock, "pid_nss.table[i]");
         pid_nss.free[i] = 1;
         root_proc_inum = ++proc_inode_counter;
@@ -217,6 +218,8 @@ found:
     return p;
 }
 
+int net_ns_ready = 0;
+
 // PAGEBREAK: 32
 //  Set up first user process.
 void userinit(void)
@@ -243,6 +246,19 @@ void userinit(void)
     p->root = namei("/");
     p->cwd = idup(p->root);
 
+    // set up root pid ns
+    p->pid_ns = p->child_pid_ns = pid_ns_get(&root_pid_ns);
+
+    p->pid_ns->initproc = p;
+    p->pid[0] = pid_ns_next_pid(p->pid_ns);
+
+    p->global_pid = p->pid[0];
+
+    // set up first net ns
+    extern net_ns_t first_net_ns;
+    p->net_ns = &first_net_ns;
+    first_net_ns.nr_proc = 1;
+
     // this assignment to p->state lets other cores
     // run this process. the acquire forces the above
     // writes to be visible, and the lock is also needed
@@ -251,13 +267,7 @@ void userinit(void)
 
     p->state = RUNNABLE;
 
-    // set up root pid ns
-    p->pid_ns = p->child_pid_ns = pid_ns_get(&root_pid_ns);
-
-    p->pid_ns->initproc = p;
-    p->pid[0] = pid_ns_next_pid(p->pid_ns);
-
-    p->global_pid = p->pid[0];
+    net_ns_ready = 1;
 
     release(&ptable.lock);
 }
@@ -356,6 +366,7 @@ int fork(void)
             np->ofile[i] = filedup(curproc->ofile[i]);
     np->cwd = idup(curproc->cwd);
     np->root = idup(curproc->root);
+    np->net_ns = get_net_ns(curproc->net_ns);
 
     safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
@@ -727,14 +738,17 @@ int unshare(int arg)
     struct proc* curproc = myproc();
     if (arg & NEWNS_PID)
         curproc->child_pid_ns = alloc_pid_ns(curproc->pid_ns);
+    if (arg & NEWNS_NET) {
+        put_net_ns(curproc->net_ns);
+        curproc->net_ns = alloc_net_ns();
+    }
     return 0;
 }
 
-int cpu_restrict(int pid, int mask)
+struct proc* getproc(int pid)
 {
     struct proc* p;
     struct proc* curproc = myproc();
-
     acquire(&ptable.lock);
     for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
         if (p->state != UNUSED) {
@@ -743,12 +757,20 @@ int cpu_restrict(int pid, int mask)
                 continue;
 
             if (p->pid[i] == pid) {
-                p->cpu_mask = mask;
                 release(&ptable.lock);
-                return 0;
+                return p;
             }
         }
     }
     release(&ptable.lock);
-    return -1;
+    return NULL;
+}
+
+int cpu_restrict(int pid, int mask)
+{
+    struct proc* p = getproc(pid);
+    if (p == NULL)
+        return -1;
+    p->cpu_mask = mask;
+    return 0;
 }

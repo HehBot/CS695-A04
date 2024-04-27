@@ -18,4 +18,7 @@
 #define PROCDEV 22
 #define MAXPROCFSMOUNT 20
 
+#define MAXPIDNS 32
+#define MAXNETNS 10
+
 #endif // PARAM_H

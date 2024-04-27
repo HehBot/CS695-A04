@@ -1,5 +1,6 @@
 #include "defs.h"
 #include "mmu.h"
+#include "net.h"
 #include "proc.h"
 #include "spinlock.h"
 #include "traps.h"
@@ -31,9 +32,6 @@ void idtinit(void)
 // PAGEBREAK: 41
 void trap(struct trapframe* tf)
 {
-    // clear out loopback queue
-    lo_rx();
-
     if (tf->trapno == T_SYSCALL) {
         if (myproc()->killed)
             exit();
@@ -43,6 +41,9 @@ void trap(struct trapframe* tf)
             exit();
         return;
     }
+
+    // clear out virtual networking device queue
+    net_virt_intr();
 
     switch (tf->trapno) {
     case T_IRQ0 + IRQ_TIMER:
