@@ -45,5 +45,6 @@
 #define SYS_cpu_restrict 38
 
 #define SYS_veth 39
+#define SYS_setns 40
 
 #endif // SYSCALL_H

@@ -426,6 +426,7 @@ void exit(void)
     }
 
     pid_ns_put(curproc->pid_ns);
+    put_net_ns(curproc->net_ns);
 
     begin_op();
     iput(curproc->cwd);
@@ -730,17 +731,26 @@ void procdump(void)
     }
 }
 
-#define NEWNS_PID (1 << 0)
-#define NEWNS_NET (1 << 1)
-
 int unshare(int arg)
 {
     struct proc* curproc = myproc();
-    if (arg & NEWNS_PID)
+    if (arg & NS_PID)
         curproc->child_pid_ns = alloc_pid_ns(curproc->pid_ns);
-    if (arg & NEWNS_NET) {
+    if (arg & NS_NET) {
         put_net_ns(curproc->net_ns);
         curproc->net_ns = alloc_net_ns();
+    }
+    return 0;
+}
+
+int setns(struct proc* target, int mask)
+{
+    struct proc* curproc = myproc();
+    if (mask & NS_PID)
+        curproc->child_pid_ns = target->pid_ns;
+    if (mask & NS_NET) {
+        put_net_ns(curproc->net_ns);
+        curproc->net_ns = get_net_ns(target->net_ns);
     }
     return 0;
 }

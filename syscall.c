@@ -117,6 +117,7 @@ extern int sys_mount_procfs(void);
 extern int sys_cpu_restrict(void);
 
 extern int sys_veth(void);
+extern int sys_setns(void);
 
 static int (*syscalls[])(void) = {
     [SYS_fork] = sys_fork,
@@ -160,6 +161,7 @@ static int (*syscalls[])(void) = {
     [SYS_mount_procfs] = sys_mount_procfs,
     [SYS_cpu_restrict] = sys_cpu_restrict,
     [SYS_veth] = sys_veth,
+    [SYS_setns] = sys_setns,
 };
 
 void syscall(void)

@@ -99,3 +99,12 @@ int sys_cpu_restrict(void)
         return -1;
     return cpu_restrict(pid, mask);
 }
+
+int sys_setns(void)
+{
+    int pid, mask;
+    struct proc* target;
+    if (argint(0, &pid) < 0 || argint(1, &mask) < 0 || ((target = getproc(pid)) == NULL))
+        return -1;
+    return setns(target, mask);
+}

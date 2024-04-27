@@ -131,6 +131,7 @@ int wait(void);
 void wakeup(void*);
 void yield(void);
 int unshare(int);
+int setns(struct proc*, int);
 int cpu_restrict(int, int);
 struct proc* getproc(int pid);
 
@@ -357,5 +358,8 @@ int socketioctl(struct socket*, int, void*);
 #define sizeof_member(s, m) sizeof(((s*)NULL)->m)
 #define array_tailof(x) (x + (sizeof(x) / sizeof(*x)))
 #define array_offset(x, y) (((uintptr_t)y - (uintptr_t)x) / sizeof(*y))
+
+#define NS_PID (1 << 0)
+#define NS_NET (1 << 1)
 
 #endif // DEFS_H

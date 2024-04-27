@@ -42,7 +42,11 @@ int recvfrom(int, char*, int, struct sockaddr*, int*);
 int sendto(int, char*, int, struct sockaddr*, int);
 int veth(int, int);
 
+#define NS_PID (1 << 0)
+#define NS_NET (1 << 1)
+
 int unshare(int);
+int setns(int, int);
 int getgpid(void);
 int chroot(char const*);
 int dup2(int, int);

@@ -31,7 +31,8 @@ net_ns_t* alloc_net_ns(void)
             net_ns_t* net_ns = &net_nss.table[i];
             net_nss.used[i] = 1;
             net_ns->devices = net_ns->lo = NULL;
-            net_ns->next_index = net_ns->nr_proc = 0;
+            net_ns->next_index = 0;
+            net_ns->nr_proc = 1;
             lo_init(net_ns);
             release(&net_nss.lock);
             return net_ns;
@@ -85,7 +86,7 @@ int netdev_register(net_ns_t* net_ns, struct netdev* dev)
     dev->next = net_ns->devices;
     net_ns->devices = dev;
 
-    cprintf("[net] netdev_register: <%s>\n", dev->name);
+    cprintf("[net] [%p] netdev_register: <%s>\n", net_ns, dev->name);
     return 0;
 }
 
