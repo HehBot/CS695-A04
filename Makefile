@@ -91,11 +91,13 @@ QEMU = $(shell if which qemu > /dev/null; \
 	echo "***" 1>&2; exit 1)
 endif
 
-CC = $(TOOLPREFIX)gcc
-AS = $(TOOLPREFIX)gas
-LD = $(TOOLPREFIX)ld
-OBJCOPY = $(TOOLPREFIX)objcopy
-OBJDUMP = \#$(TOOLPREFIX)objdump
+export CC = $(TOOLPREFIX)gcc
+export AS = $(TOOLPREFIX)gas
+export LD = $(TOOLPREFIX)ld
+export AR = $(TOOLPREFIX)ar
+export OBJCOPY = $(TOOLPREFIX)objcopy
+export OBJDUMP = $(TOOLPREFIX)objdump
+
 CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O0 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -Wno-unused-variable -Wno-unused-function -Wno-address-of-packed-member
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
@@ -109,6 +111,10 @@ endif
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]nopie'),)
 CFLAGS += -fno-pie -nopie
 endif
+
+export CFLAGS
+export ASFLAGS
+export LDFLAGS
 
 GCC_LIB := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
 
@@ -154,7 +160,7 @@ kernel: $(OBJS) entry.o entryother initcode kernel.ld
 # great for testing the kernel on real hardware without
 # needing a scratch disk.
 MEMFSOBJS = $(filter-out ide.o,$(OBJS)) memide.o
-kernelmemfs: $(MEMFSOBJS) entry.o entryother initcode kernel.ld fs.img
+kernelmemfs: $(MEMFSOBJS) entry.o entryother initcode kernel.ld fs
 	$(LD) $(LDFLAGS) -T kernel.ld -o kernelmemfs entry.o  $(MEMFSOBJS) -b binary initcode entryother fs.img
 	$(OBJDUMP) -S kernelmemfs > kernelmemfs.asm
 	$(OBJDUMP) -t kernelmemfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernelmemfs.sym
@@ -165,21 +171,8 @@ tags: $(OBJS) entryother.S _init
 vectors.S: vectors.pl
 	./vectors.pl > vectors.S
 
-ULIB = ulib.o usys.o printf.o umalloc.o
-
-_%: %.o $(ULIB)
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
-	$(OBJDUMP) -S $@ > $*.asm
-	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $*.sym
-
-_forktest: forktest.o $(ULIB)
-	# forktest has less library code linked in - needs to be small
-	# in order to be able to max out the proc table.
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o _forktest forktest.o ulib.o usys.o
-	$(OBJDUMP) -S _forktest > forktest.asm
-
 mkfs: mkfs.c fs.h
-	gcc -Werror -Wall -DBUILD_MKFS -o mkfs mkfs.c
+	gcc -Werror -Wall -o mkfs mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
 # that disk image changes after first build are persistent until clean.  More
@@ -188,51 +181,54 @@ mkfs: mkfs.c fs.h
 .PRECIOUS: %.o
 
 UPROGS=\
-	_cat\
-	_echo\
-	_forktest\
-	_grep\
-	_init\
-	_kill\
-	_ln\
-	_ls\
-	_ps\
-	_mkdir\
-	_rm\
-	_cp\
-	_sh\
-	_pwd\
-	_chroot\
-	_stressfs\
-	_unshare\
-	_usertests\
-	_wc\
-	_zombie\
+	cat\
+	echo\
+	forktest\
+	grep\
+	init\
+	kill\
+	ln\
+	ls\
+	ps\
+	mkdir\
+	rm\
+	cp\
+	sh\
+	pwd\
+	chroot\
+	stressfs\
+	unshare\
+	usertests\
+	wc\
+	zombie\
 
 NET_UPROGS=\
-    _ifconfig\
-	_tcpechoserver\
-	_udpechoserver\
-	_lotestclient\
+    ifconfig\
+	tcpechoserver\
+	udpechoserver\
+	lotestclient\
 
 NS_UPROGS=\
-	_pid_ns_forktest\
-	_procfs_test\
-	_cpu_restrict_test\
+	pid_ns_forktest\
+	procfs_test\
+	cpu_restrict_test\
 
 UPROGS += $(NET_UPROGS) $(NS_UPROGS)
+export UPROGS
 
-fs.img: mkfs README $(UPROGS)
-	./mkfs fs.img README $(UPROGS)
+fs: mkfs
+	@$(MAKE) -C uprogs
+	cp README uprogs/fsroot
+	./mkfs fs.img uprogs/fsroot
 
 -include *.d
 
 clean:
-	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
+	$(RM) *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	*.o *.d *.asm *.sym vectors.S bootblock entryother \
 	initcode initcode.out kernel xv6.img fs.img kernelmemfs \
-	xv6memfs.img mkfs .gdbinit \
-	$(UPROGS)
+	xv6memfs.img mkfs .gdbinit
+	@$(MAKE) -C uprogs clean
 
 # make a printout
 FILES = $(shell grep -v '^\#' runoff.list)
@@ -246,7 +242,7 @@ print: xv6.pdf
 
 # run in emulators
 
-bochs : fs.img xv6.img
+bochs : fs xv6.img
 	if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
 	bochs -q
 
@@ -265,23 +261,23 @@ QEMUNET = -netdev user,id=n1,hostfwd=udp::10007-:7,hostfwd=tcp::10007-:7 -device
 
 QEMUOPTS = -drive file=fs.img,index=1,media=disk,format=raw -drive file=xv6.img,index=0,media=disk,format=raw -smp cpus=$(CPUS),cores=1,threads=1,sockets=$(CPUS) -m 512 $(QEMUEXTRA) $(QEMUNET)
 
-qemu: fs.img xv6.img
+qemu: fs xv6.img
 	$(QEMU) -serial mon:stdio $(QEMUOPTS)
 
 qemu-memfs: xv6memfs.img
 	$(QEMU) -drive file=xv6memfs.img,index=0,media=disk,format=raw -smp $(CPUS) -m 256
 
-qemu-nox: fs.img xv6.img
+qemu-nox: fs xv6.img
 	$(QEMU) -nographic $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
-qemu-gdb: fs.img xv6.img .gdbinit
+qemu-gdb: fs xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
 
-qemu-nox-gdb: fs.img xv6.img .gdbinit
+qemu-nox-gdb: fs xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 
@@ -333,14 +329,14 @@ docker-build:
 docker-run:
 	docker run -it --name xv6-net --rm --device=/dev/net/tun --cap-add=NET_ADMIN xv6-net make run
 
-run: xv6.img fs.img
+run: xv6.img fs
 	sudo ip tuntap add mode tap name tap0
 	sudo ip addr add 172.16.100.1/24 dev tap0
 	sudo ip link set tap0 up
 	sudo $(QEMU) -nographic $(QEMUOPTS)
 	sudo ip tuntap del mode tap name tap0
 
-run-gdb: fs.img xv6.img .gdbinit
+run-gdb: fs xv6.img .gdbinit
 	sudo ip tuntap add mode tap name tap0
 	sudo ip addr add 172.16.100.1/24 dev tap0
 	sudo ip link set tap0 up
@@ -348,4 +344,4 @@ run-gdb: fs.img xv6.img .gdbinit
 	sudo $(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 	sudo ip tuntap del mode tap name tap0
 
-.PHONY: dist-test dist docker-build docker-run run run-gdb
+.PHONY: dist-test dist docker-build docker-run run run-gdb clean fs

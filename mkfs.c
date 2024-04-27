@@ -1,11 +1,13 @@
 #include <assert.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#define stat xv6_stat // avoid clash with host struct stat
+#define BUILD_MKFS
+
 #include "fs.h"
 #include "param.h"
 #include "stat.h"
@@ -67,28 +69,88 @@ uint xint(uint x)
     return y;
 }
 
-int main(int argc, char* argv[])
+void processdir(uint currino, uint parentino)
 {
-    int i, cc, fd;
-    uint rootino, inum, off;
-    struct dirent de;
-    char buf[BSIZE];
-    struct dinode din;
+    struct xv6_dirent xv6_de;
+    // create entry for .
+    memset(&xv6_de, 0, sizeof(xv6_de));
+    xv6_de.inum = xshort(currino);
+    strcpy(xv6_de.name, ".");
+    iappend(currino, &xv6_de, sizeof(xv6_de));
+    // create entry for ..
+    memset(&xv6_de, 0, sizeof(xv6_de));
+    xv6_de.inum = xshort(parentino);
+    strcpy(xv6_de.name, "..");
+    iappend(currino, &xv6_de, sizeof(xv6_de));
 
-    static_assert(sizeof(int) == 4, "Integers must be 4 bytes!");
+    DIR* curr = opendir(".");
+    struct dirent* de;
+    while ((de = readdir(curr)) != NULL) {
+        uint newino;
+        switch (de->d_type) {
+        case DT_REG: {
+            newino = ialloc(T_FILE);
+            int fd = open(de->d_name, O_RDONLY);
 
-    if (argc < 2) {
-        fprintf(stderr, "Usage: mkfs fs.img files...\n");
-        exit(1);
+            char buf[BSIZE];
+            int cc;
+            while ((cc = read(fd, buf, sizeof(buf))) > 0)
+                iappend(newino, buf, cc);
+
+            close(fd);
+        } break;
+        case DT_DIR: {
+            if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
+                continue;
+            uint newino = ialloc(T_DIR);
+            chdir(de->d_name);
+            processdir(newino, currino);
+            chdir("..");
+        } break;
+        case DT_UNKNOWN:
+            fprintf(stderr, "readdir returned DT_UNKNOWN!\n");
+            exit(1);
+        default:
+            continue;
+        }
+        memset(&xv6_de, 0, sizeof(xv6_de));
+        xv6_de.inum = xshort(newino);
+        strncpy(xv6_de.name, de->d_name, DIRSIZ);
+        iappend(currino, &xv6_de, sizeof(xv6_de));
     }
 
-    assert((BSIZE % sizeof(struct dinode)) == 0);
-    assert((BSIZE % sizeof(struct dirent)) == 0);
+    struct dinode din;
+    rinode(currino, &din);
+    uint off = xint(din.size);
+    uint g = (off / BSIZE) * BSIZE;
+    if (off != g)
+        off = g + BSIZE;
+    din.size = xint(off);
+    winode(currino, &din);
+}
 
-    fsfd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0666);
+int main(int argc, char* argv[])
+{
+    static_assert(sizeof(int) == 4, "Integers must be 4 bytes!");
+
+    if (argc != 3) {
+        fprintf(stderr, "Usage: mkfs <fs.img> <rootdir>\n");
+        return 1;
+    }
+
+    char buf[BSIZE];
+    assert((BSIZE % sizeof(struct dinode)) == 0);
+    assert((BSIZE % sizeof(struct xv6_dirent)) == 0);
+
+    fsfd = open(argv[1], O_RDWR | O_CREAT | O_TRUNC, 0644);
     if (fsfd < 0) {
         perror(argv[1]);
-        exit(1);
+        return 1;
+    }
+
+    if (chdir(argv[2]) < 0) {
+        perror(argv[2]);
+        return 1;
     }
 
     // 1 fs block = 1 disk sector
@@ -108,64 +170,23 @@ int main(int argc, char* argv[])
 
     freeblock = nmeta; // the first free block that we can allocate
 
-    for (i = 0; i < FSSIZE; i++)
+    for (uint i = 0; i < FSSIZE; i++)
         wsect(i, zeroes);
 
     memset(buf, 0, sizeof(buf));
     memmove(buf, &sb, sizeof(sb));
     wsect(1, buf);
 
-    rootino = ialloc(T_DIR);
+    uint rootino = ialloc(T_DIR);
     assert(rootino == ROOTINO);
+    uint parentino = rootino;
 
-    bzero(&de, sizeof(de));
-    de.inum = xshort(rootino);
-    strcpy(de.name, ".");
-    iappend(rootino, &de, sizeof(de));
-
-    bzero(&de, sizeof(de));
-    de.inum = xshort(rootino);
-    strcpy(de.name, "..");
-    iappend(rootino, &de, sizeof(de));
-
-    for (i = 2; i < argc; i++) {
-        assert(index(argv[i], '/') == 0);
-
-        if ((fd = open(argv[i], 0)) < 0) {
-            perror(argv[i]);
-            exit(1);
-        }
-
-        // Skip leading _ in name when writing to file system.
-        // The binaries are named _rm, _cat, etc. to keep the
-        // build operating system from trying to execute them
-        // in place of system binaries like rm and cat.
-        if (argv[i][0] == '_')
-            ++argv[i];
-
-        inum = ialloc(T_FILE);
-
-        bzero(&de, sizeof(de));
-        de.inum = xshort(inum);
-        strncpy(de.name, argv[i], DIRSIZ);
-        iappend(rootino, &de, sizeof(de));
-
-        while ((cc = read(fd, buf, sizeof(buf))) > 0)
-            iappend(inum, buf, cc);
-
-        close(fd);
-    }
-
-    // fix size of root inode dir
-    rinode(rootino, &din);
-    off = xint(din.size);
-    off = ((off / BSIZE) + 1) * BSIZE;
-    din.size = xint(off);
-    winode(rootino, &din);
+    // we have already chdir'd to argv[2]
+    processdir(rootino, parentino);
 
     balloc(freeblock);
 
-    exit(0);
+    return 0;
 }
 
 void wsect(uint sec, void* buf)
@@ -222,7 +243,7 @@ uint ialloc(ushort type)
     uint inum = freeinode++;
     struct dinode din;
 
-    bzero(&din, sizeof(din));
+    memset(&din, 0, sizeof(din));
     din.type = xshort(type);
     din.nlink = xshort(1);
     din.size = xint(0);
@@ -237,7 +258,7 @@ void balloc(int used)
 
     printf("balloc: first %d blocks have been allocated\n", used);
     assert(used < BSIZE * 8);
-    bzero(buf, BSIZE);
+    memset(buf, 0, BSIZE);
     for (i = 0; i < used; i++) {
         buf[i / 8] = buf[i / 8] | (0x1 << (i % 8));
     }
@@ -280,7 +301,7 @@ void iappend(uint inum, void* xp, int n)
         }
         n1 = min(n, (fbn + 1) * BSIZE - off);
         rsect(x, buf);
-        bcopy(p, buf + off - (fbn * BSIZE), n1);
+        memmove(buf + off - (fbn * BSIZE), p, n1);
         wsect(x, buf);
         n -= n1;
         off += n1;

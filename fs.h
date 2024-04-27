@@ -54,7 +54,11 @@ struct dinode {
 // Directory is a file containing a sequence of dirent structures.
 #define DIRSIZ 14
 
+#ifndef BUILD_MKFS
 struct dirent {
+#else
+struct xv6_dirent {
+#endif
     ushort inum;
     char name[DIRSIZ];
 };
