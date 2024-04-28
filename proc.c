@@ -712,10 +712,15 @@ void procdump(void)
 
         pid_ns_t* iter = p->pid_ns;
         int i = 0;
-        while (iter != NULL) {
-            cprintf("%d[%p]->", p->pid[i], iter);
+        if (iter != NULL) {
+            cprintf("%d[%p]", p->pid[i], iter);
             i++;
             iter = iter->parent;
+            while (iter != NULL) {
+                cprintf("->%d[%p]", p->pid[i], iter);
+                i++;
+                iter = iter->parent;
+            }
         }
 
         if (p->state == SLEEPING) {

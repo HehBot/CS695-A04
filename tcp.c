@@ -165,12 +165,13 @@ tcp_cb_clear(struct tcp_cb* cb)
 static ssize_t
 tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf, size_t len)
 {
-    // possible kernel stack overflow
-    static uint8_t segment[1500];
+    void* segment = kalloc(); // DO NOT replace with kmalloc, 1500 bytes needed
+    int segment_sz = 1500;
+    memset(segment, 0, segment_sz);
+
     struct tcp_hdr* hdr;
     ip_addr_t self, peer;
 
-    memset(&segment, 0, sizeof(segment));
     hdr = (struct tcp_hdr*)segment;
     hdr->src = cb->port;
     hdr->dst = cb->peer.port;
@@ -187,8 +188,8 @@ tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf,
     else
         // FIXME what to do here?
         // apparently TCP checksum modification is done by IP
-        self = 0x100007f;
-    // self = 0x200a8c0;
+        // self = 0x100007f;
+        self = 0x100a8c0;
     peer = cb->peer.addr;
 
     uint32_t pseudo = 0;
@@ -202,6 +203,7 @@ tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf,
 
     ip_tx(cb->iface, IP_PROTOCOL_TCP, (uint8_t*)hdr, sizeof(struct tcp_hdr) + len, &peer);
     tcp_txq_add(cb, hdr, sizeof(struct tcp_hdr) + len);
+    kfree(segment);
     return len;
 }
 

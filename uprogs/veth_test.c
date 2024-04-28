@@ -1,3 +1,4 @@
+#include "fcntl.h"
 #include "if.h"
 #include "socket.h"
 #include "sockio.h"
@@ -63,22 +64,25 @@ void init()
     }
 }
 
-void client()
+void client(void)
 {
     ip_addr_t a, n;
-    ip_addr_pton("192.168.0.2", &a);
+    ip_addr_pton("192.168.0.1", &a);
     ip_addr_pton("255.255.255.0", &n);
     ifset("net1", &a, &n);
     ifup("net1");
 
-    sleep(150);
-
+    printf(1, "Client net ns:\n");
     if (fork() == 0) {
         char* argv[] = { "ifconfig", NULL };
         exec(argv[0], argv);
     }
-
     wait();
+
+    int f = open("client.log", O_CREATE | O_WRONLY);
+    dup2(f, 1);
+    dup2(f, 2);
+    close(f);
 
     printf(1, "Starting client\n");
 
@@ -132,20 +136,26 @@ int main()
     ifset("net3", &a, &n);
     ifup("net3");
 
+    setns(getpid(), NS_PID);
     if (fork() == 0) {
+        printf(1, "Server net ns:\n");
         char* argv[] = { "ifconfig", NULL };
         exec(argv[0], argv);
     }
-
-    printf(1, "Starting server\n");
-
     if (fork() == 0) {
+        int f = open("server.log", O_CREATE | O_WRONLY);
+        dup2(f, 1);
+        dup2(f, 2);
+        close(f);
+
+        printf(1, "Starting server\n");
         char* argv[] = { "/tcpechoserver", NULL };
         exec(argv[0], argv);
     }
 
     setns(i2, NS_PID | NS_NET);
     if (fork() == 0) {
+        sleep(150);
         client();
     }
 

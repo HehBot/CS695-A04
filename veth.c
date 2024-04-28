@@ -3,6 +3,11 @@
 #include "net.h"
 #include "types.h"
 
+struct veth_frame {
+    uint16_t type;
+    uint8_t packet[];
+};
+
 struct veth {
     uint8_t addr[6];
     struct veth* peer;
@@ -20,20 +25,22 @@ static int veth_stop(struct netdev* dev)
     return 0;
 }
 
-static int veth_tx_helper(struct netdev* netdev, uint8_t* frame, size_t len)
+static int veth_tx_helper(struct netdev* netdev, uint16_t type, uint8_t const* frame, size_t len)
 {
-    void* f = (void*)kalloc();
-    memcpy(f, frame, len);
+    struct veth_frame* f = (void*)kalloc();
+    f->type = hton16(type);
+    memcpy(&f->packet[0], frame, len);
 
     struct veth* veth = netdev->priv;
-    queue_push(&veth->frame_queue, f, len);
+    queue_push(&veth->peer->frame_queue, f, len);
 
     return len;
 }
 
-static int veth_tx(struct netdev* dev, uint16_t type, const uint8_t* segment, size_t size, const void* dst)
+static int veth_tx(struct netdev* dev, uint16_t type, uint8_t const* segment, size_t size, const void* dst)
 {
-    return ethernet_tx_helper(dev, type, segment, size, dst, &veth_tx_helper);
+    return veth_tx_helper(dev, type, segment, size);
+    // return ethernet_tx_helper(dev, type, segment, size, dst, &veth_tx_helper);
 }
 
 void veth_intr_handle(struct netdev* netdev)
@@ -45,11 +52,12 @@ void veth_intr_handle(struct netdev* netdev)
 
     struct queue_entry* e;
     while ((e = queue_pop(&veth->frame_queue)) != NULL) {
-        void* f = e->data;
+        struct veth_frame* f = e->data;
         size_t size = e->size;
         kfree((void*)e);
-        ethernet_rx_helper(netdev, f, size, netdev_receive);
-        kfree(f);
+        netdev_receive(netdev, f->type, &f->packet[0], size);
+        // ethernet_rx_helper(netdev, f, size, netdev_receive);
+        kfree((void*)f);
     }
 }
 
@@ -80,7 +88,7 @@ void veth_init(net_ns_t* net_ns_1, net_ns_t* net_ns_2)
         veth1->addr[i] = genrand_int32() & 0xff;
     memcpy(netdev->addr, veth1->addr, sizeof(veth1->addr));
 
-    netdev->flags |= NETDEV_FLAG_RUNNING;
+    netdev->flags |= NETDEV_FLAG_RUNNING | NETDEV_FLAG_NOARP;
     netdev_register(net_ns_1, netdev);
 
     netdev = netdev_alloc(&veth_init_helper);
@@ -93,4 +101,6 @@ void veth_init(net_ns_t* net_ns_1, net_ns_t* net_ns_2)
 
     netdev->flags |= NETDEV_FLAG_RUNNING | NETDEV_FLAG_NOARP;
     netdev_register(net_ns_2, netdev);
+
+    // ip_route_
 }

@@ -79,13 +79,9 @@ int sys_dup2(void)
         return new_fd;
 
     struct proc* curproc = myproc();
-    if (curproc->ofile[new_fd] != NULL) {
+    if (curproc->ofile[new_fd] != NULL)
         fileclose(curproc->ofile[new_fd]);
-        curproc->ofile[new_fd] = NULL;
-    }
-
-    curproc->ofile[new_fd] = old_file;
-    filedup(old_file);
+    curproc->ofile[new_fd] = filedup(old_file);
     return new_fd;
 }
 

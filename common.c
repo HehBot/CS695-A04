@@ -5,6 +5,8 @@
 #include "defs.h"
 #include "types.h"
 
+#define DEBUG
+
 #define isascii(x) ((x >= 0x00) && (x <= 0x7f))
 #define isprint(x) ((x >= 0x20) && (x <= 0x7e))
 
@@ -140,17 +142,17 @@ queue_push(struct queue_head* queue, void* data, size_t size)
     entry->size = size;
     entry->next = NULL;
 
+    acquire(&queue->next_lock);
     acquire(&queue->tail_lock);
     if (queue->tail) {
         queue->tail->next = entry;
     }
     queue->tail = entry;
-    acquire(&queue->next_lock);
+    release(&queue->tail_lock);
     if (!queue->next) {
         queue->next = entry;
     }
     release(&queue->next_lock);
-    release(&queue->tail_lock);
 #ifdef DEBUG
     cprintf("queue %p push %p\n", queue, entry);
 #endif

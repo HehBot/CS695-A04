@@ -99,15 +99,15 @@ ethernet_rx_helper(struct netdev* dev, uint8_t* frame, size_t flen, void (*cb)(s
 ssize_t
 ethernet_tx_helper(struct netdev* dev, uint16_t type, const uint8_t* payload, size_t plen, const void* dst, ssize_t (*cb)(struct netdev*, uint8_t*, size_t))
 {
-    // possible kernel stack overflow
-    static uint8_t frame[ETHERNET_FRAME_SIZE_MAX];
+    void* frame = kalloc(); // DO NOT replace with kmalloc, ETHERNET_FRAME_SIZE_MAX bytes needed
+    memset(frame, 0, ETHERNET_FRAME_SIZE_MAX);
+
     struct ethernet_hdr* hdr;
     size_t flen;
 
     if (!payload || plen > ETHERNET_PAYLOAD_SIZE_MAX || !dst) {
         return -1;
     }
-    memset(frame, 0, sizeof(frame));
     hdr = (struct ethernet_hdr*)frame;
     memcpy(hdr->dst, dst, ETHERNET_ADDR_LEN);
     memcpy(hdr->src, dev->addr, ETHERNET_ADDR_LEN);
@@ -118,7 +118,9 @@ ethernet_tx_helper(struct netdev* dev, uint16_t type, const uint8_t* payload, si
     cprintf(">>> ethernet_tx <<<\n");
     ethernet_dump(dev, frame, flen);
 #endif
-    return cb(dev, frame, flen) == (ssize_t)flen ? (ssize_t)plen : -1;
+    ssize_t r = (cb(dev, frame, flen) == (ssize_t)flen ? (ssize_t)plen : -1);
+    kfree(frame);
+    return r;
 }
 
 void ethernet_netdev_setup(struct netdev* dev)

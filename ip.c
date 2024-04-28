@@ -363,9 +363,7 @@ ip_tx_netdev(struct netif* netif, uint8_t* packet, size_t plen, const ip_addr_t*
 static int
 ip_tx_core(struct netif* netif, uint8_t protocol, const uint8_t* buf, size_t len, const ip_addr_t* src, const ip_addr_t* dst, const ip_addr_t* nexthop, uint16_t id, uint16_t offset)
 {
-    // 100% kernel stack overflow
-    // wtf man
-    static uint8_t packet[4096];
+    void* packet = kalloc(); // DO NOT replace with kmalloc, 4096 bytes needed
     struct ip_hdr* hdr;
     uint16_t hlen;
 
@@ -387,7 +385,9 @@ ip_tx_core(struct netif* netif, uint8_t protocol, const uint8_t* buf, size_t len
     cprintf(">>> ip_tx_core <<<\n");
     ip_dump(netif, (uint8_t*)packet, hlen + len);
 #endif
-    return ip_tx_netdev(netif, (uint8_t*)packet, hlen + len, nexthop);
+    int r = ip_tx_netdev(netif, (uint8_t*)packet, hlen + len, nexthop);
+    kfree(packet);
+    return r;
 }
 
 static uint16_t
