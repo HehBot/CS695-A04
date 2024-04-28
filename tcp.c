@@ -166,7 +166,7 @@ static ssize_t
 tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf, size_t len)
 {
     // possible kernel stack overflow
-    uint8_t segment[1500];
+    static uint8_t segment[1500];
     struct tcp_hdr* hdr;
     ip_addr_t self, peer;
 
@@ -188,6 +188,7 @@ tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf,
         // FIXME what to do here?
         // apparently TCP checksum modification is done by IP
         self = 0x100007f;
+    // self = 0x200a8c0;
     peer = cb->peer.addr;
 
     uint32_t pseudo = 0;
@@ -520,6 +521,7 @@ int tcp_api_open(void)
     for (cb = cb_table; cb < array_tailof(cb_table); cb++) {
         if (!cb->used) {
             cb->used = 1;
+            init_queue(&cb->backlog);
             release(&cb_table_lock);
             return array_offset(cb_table, cb);
         }

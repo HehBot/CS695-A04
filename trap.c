@@ -42,9 +42,6 @@ void trap(struct trapframe* tf)
         return;
     }
 
-    // clear out virtual networking device queue
-    net_virt_intr();
-
     switch (tf->trapno) {
     case T_IRQ0 + IRQ_TIMER:
         if (cpuid() == 0) {
@@ -96,6 +93,9 @@ void trap(struct trapframe* tf)
                 tf->err, cpuid(), tf->eip, rcr2());
         myproc()->killed = 1;
     }
+
+    // clear out virtual networking device queue
+    net_virt_intr();
 
     // Force process exit if it has been killed and is in user space.
     // (If it is still executing in the kernel, let it keep running

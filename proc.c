@@ -218,8 +218,6 @@ found:
     return p;
 }
 
-int net_ns_ready = 0;
-
 // PAGEBREAK: 32
 //  Set up first user process.
 void userinit(void)
@@ -266,8 +264,6 @@ void userinit(void)
     acquire(&ptable.lock);
 
     p->state = RUNNABLE;
-
-    net_ns_ready = 1;
 
     release(&ptable.lock);
 }

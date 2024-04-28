@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "defs.h"
-#include "ethernet.h"
 #include "ip.h"
 #include "net.h"
 #include "proc.h"
@@ -364,7 +363,9 @@ ip_tx_netdev(struct netif* netif, uint8_t* packet, size_t plen, const ip_addr_t*
 static int
 ip_tx_core(struct netif* netif, uint8_t protocol, const uint8_t* buf, size_t len, const ip_addr_t* src, const ip_addr_t* dst, const ip_addr_t* nexthop, uint16_t id, uint16_t offset)
 {
-    uint8_t packet[4096];
+    // 100% kernel stack overflow
+    // wtf man
+    static uint8_t packet[4096];
     struct ip_hdr* hdr;
     uint16_t hlen;
 

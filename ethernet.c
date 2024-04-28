@@ -100,7 +100,7 @@ ssize_t
 ethernet_tx_helper(struct netdev* dev, uint16_t type, const uint8_t* payload, size_t plen, const void* dst, ssize_t (*cb)(struct netdev*, uint8_t*, size_t))
 {
     // possible kernel stack overflow
-    uint8_t frame[ETHERNET_FRAME_SIZE_MAX];
+    static uint8_t frame[ETHERNET_FRAME_SIZE_MAX];
     struct ethernet_hdr* hdr;
     size_t flen;
 

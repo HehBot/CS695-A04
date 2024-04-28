@@ -9,12 +9,12 @@ ULIB = ulib.a
 all: $(UPROGS_FULL_PATH)
 
 $(FSROOT)/forktest: forktest.o ulib.o usys.o
+	# forktest has less library code linked in - needs to be small
+	# in order to be able to max out the proc table.
 	@mkdir -p $(dir $@)
 	$(LD) $(LDFLAGS)  -N -e main -Ttext 0 -o $@ $^
 
 $(FSROOT)/%: %.o $(ULIB)
-	# forktest has less library code linked in - needs to be small
-	# in order to be able to max out the proc table.
 	@mkdir -p $(dir $@)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
 	$(OBJDUMP) -S $@ > $*.asm

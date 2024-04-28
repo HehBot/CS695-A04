@@ -119,46 +119,69 @@ cksum16(uint16_t* data, uint16_t size, uint32_t init)
     return ~(uint16_t)sum;
 }
 
+void init_queue(struct queue_head* queue)
+{
+    queue->next = queue->tail = NULL;
+    initlock(&queue->next_lock, "queue->next_lock");
+    initlock(&queue->tail_lock, "queue->tail_lock");
+}
+
 struct queue_entry*
 queue_push(struct queue_head* queue, void* data, size_t size)
 {
-    struct queue_entry* entry;
-
-    if (!queue || !data) {
+    if (queue == NULL)
         return NULL;
-    }
-    entry = (struct queue_entry*)kalloc();
+
+    struct queue_entry* entry = (struct queue_entry*)kalloc();
     if (!entry) {
         return NULL;
     }
     entry->data = data;
     entry->size = size;
     entry->next = NULL;
+
+    acquire(&queue->tail_lock);
     if (queue->tail) {
         queue->tail->next = entry;
     }
     queue->tail = entry;
+    acquire(&queue->next_lock);
     if (!queue->next) {
         queue->next = entry;
     }
-    queue->num++;
+    release(&queue->next_lock);
+    release(&queue->tail_lock);
+#ifdef DEBUG
+    cprintf("queue %p push %p\n", queue, entry);
+#endif
     return entry;
 }
 
 struct queue_entry*
 queue_pop(struct queue_head* queue)
 {
-    struct queue_entry* entry;
+    if (queue == NULL)
+        return NULL;
 
-    if (!queue || !queue->next) {
+    if (!tryacquire(&queue->next_lock))
+        return NULL;
+    struct queue_entry* entry = queue->next;
+
+    if (entry == NULL) {
+        release(&queue->next_lock);
         return NULL;
     }
-    entry = queue->next;
+
     queue->next = entry->next;
     if (!queue->next) {
+        acquire(&queue->tail_lock);
         queue->tail = NULL;
+        release(&queue->tail_lock);
     }
-    queue->num--;
+    release(&queue->next_lock);
+#ifdef DEBUG
+    cprintf("queue %p pop %p\n", queue, entry);
+#endif
     return entry;
 }
 

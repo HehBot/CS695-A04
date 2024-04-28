@@ -21,15 +21,15 @@ int tryacquire(struct spinlock* lk)
     if (holding(lk))
         panic("tryacquire");
 
-    int held = (xchg(&lk->locked, 1) == 0);
+    int acquired = (xchg(&lk->locked, 1) == 0);
     __sync_synchronize();
 
-    if (held) {
+    if (acquired) {
         lk->cpu = mycpu();
         getcallerpcs(&lk, lk->pcs);
     } else
         popcli();
-    return held;
+    return acquired;
 }
 
 // Acquire the lock.

@@ -63,21 +63,7 @@ void init()
     }
 }
 
-void c1()
-{
-    ip_addr_t a, n;
-    ip_addr_pton("192.168.0.1", &a);
-    ip_addr_pton("255.255.255.0", &n);
-    ifset("net1", &a, &n);
-    ifup("net1");
-
-    printf(1, "Starting c1\n");
-
-    char* argv[] = { "/tcpechoserver", NULL };
-    exec(argv[0], argv);
-}
-
-void c2()
+void client()
 {
     ip_addr_t a, n;
     ip_addr_pton("192.168.0.2", &a);
@@ -85,9 +71,16 @@ void c2()
     ifset("net1", &a, &n);
     ifup("net1");
 
-    sleep(300);
+    sleep(150);
 
-    printf(1, "Starting c2\n");
+    if (fork() == 0) {
+        char* argv[] = { "ifconfig", NULL };
+        exec(argv[0], argv);
+    }
+
+    wait();
+
+    printf(1, "Starting client\n");
 
     int soc = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (soc == -1) {
@@ -122,21 +115,39 @@ void c2()
 
 int main()
 {
-    int i1, i2;
-    unshare(NS_PID | NS_NET);
-    if ((i1 = fork()) == 0)
+    int i2;
+    unshare(NS_PID);
+    if ((i2 = fork()) == 0) {
+        unshare(NS_NET);
         init();
-    unshare(NS_PID | NS_NET);
-    if ((i2 = fork()) == 0)
-        init();
-    veth(i1, i2);
-    setns(i1, NS_PID | NS_NET);
-    if (fork() == 0) {
-        c1();
     }
+
+    sleep(100);
+
+    veth(getpid(), i2);
+
+    ip_addr_t a, n;
+    ip_addr_pton("192.168.0.1", &a);
+    ip_addr_pton("255.255.255.0", &n);
+    ifset("net3", &a, &n);
+    ifup("net3");
+
+    if (fork() == 0) {
+        char* argv[] = { "ifconfig", NULL };
+        exec(argv[0], argv);
+    }
+
+    printf(1, "Starting server\n");
+
+    if (fork() == 0) {
+        char* argv[] = { "/tcpechoserver", NULL };
+        exec(argv[0], argv);
+    }
+
     setns(i2, NS_PID | NS_NET);
     if (fork() == 0) {
-        c2();
+        client();
     }
+
     exit();
 }

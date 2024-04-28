@@ -11,7 +11,6 @@ struct lo_frame {
 
 struct lo {
     struct queue_head frame_queue;
-    struct spinlock lock;
 };
 
 static int lo_open(struct netdev* dev)
@@ -30,17 +29,15 @@ static int lo_tx(struct netdev* dev, uint16_t type, const uint8_t* packet, size_
     struct lo_frame* f = (void*)kalloc();
     f->type = hton16(type);
     memcpy(&f->packet[0], packet, size);
-    queue_push(&((struct lo*)dev->priv)->frame_queue, f, size);
+
+    struct lo* lo = dev->priv;
+    queue_push(&lo->frame_queue, f, size);
+
     return size;
 }
 void lo_intr_handle(struct netdev* netdev)
 {
     struct lo* lo = (struct lo*)netdev->priv;
-
-    // it's possible multiple CPUs reach here at the same time
-    // when only one is needed to clear the queue
-    if (!tryacquire(&lo->lock))
-        return;
 
     struct queue_entry* e;
     while ((e = queue_pop(&lo->frame_queue)) != NULL) {
@@ -50,8 +47,6 @@ void lo_intr_handle(struct netdev* netdev)
         netdev_receive(netdev, f->type, &f->packet[0], size);
         kfree((void*)f);
     }
-
-    release(&lo->lock);
 }
 
 static struct netdev_ops lo_ops = {
@@ -75,7 +70,7 @@ void lo_init(net_ns_t* net_ns)
     netdev->ops = &lo_ops;
 
     struct lo* lo = (void*)kalloc();
-    memset(lo, 0, sizeof(*lo));
+    init_queue(&lo->frame_queue);
     netdev->priv = (void*)lo;
 
     netdev->flags |= NETDEV_FLAG_RUNNING;

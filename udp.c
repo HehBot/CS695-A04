@@ -140,6 +140,7 @@ int udp_api_open(void)
     for (cb = cb_table; cb < array_tailof(cb_table); cb++) {
         if (!cb->used) {
             cb->used = 1;
+            init_queue(&cb->queue);
             release(&udplock);
             return array_offset(cb_table, cb);
         }

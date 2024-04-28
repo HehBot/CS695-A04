@@ -4,9 +4,9 @@
 #include "types.h"
 
 struct veth {
+    uint8_t addr[6];
     struct veth* peer;
     struct queue_head frame_queue;
-    struct spinlock lock;
 };
 
 static int veth_open(struct netdev* dev)
@@ -24,7 +24,10 @@ static int veth_tx_helper(struct netdev* netdev, uint8_t* frame, size_t len)
 {
     void* f = (void*)kalloc();
     memcpy(f, frame, len);
-    queue_push(&((struct veth*)netdev->priv)->frame_queue, f, len);
+
+    struct veth* veth = netdev->priv;
+    queue_push(&veth->frame_queue, f, len);
+
     return len;
 }
 
@@ -39,8 +42,6 @@ void veth_intr_handle(struct netdev* netdev)
 
     // it's possible multiple CPUs reach here at the same time
     // when only one is needed to clear the queue
-    if (!tryacquire(&veth->lock))
-        return;
 
     struct queue_entry* e;
     while ((e = queue_pop(&veth->frame_queue)) != NULL) {
@@ -50,8 +51,6 @@ void veth_intr_handle(struct netdev* netdev)
         ethernet_rx_helper(netdev, f, size, netdev_receive);
         kfree(f);
     }
-
-    release(&veth->lock);
 }
 
 static struct netdev_ops veth_ops = {
@@ -77,6 +76,9 @@ void veth_init(net_ns_t* net_ns_1, net_ns_t* net_ns_2)
     netdev->type = NETDEV_TYPE_VETH;
     netdev->ops = &veth_ops;
     netdev->priv = (void*)veth1;
+    for (int i = 0; i < 6; ++i)
+        veth1->addr[i] = genrand_int32() & 0xff;
+    memcpy(netdev->addr, veth1->addr, sizeof(veth1->addr));
 
     netdev->flags |= NETDEV_FLAG_RUNNING;
     netdev_register(net_ns_1, netdev);
@@ -85,7 +87,10 @@ void veth_init(net_ns_t* net_ns_1, net_ns_t* net_ns_2)
     netdev->type = NETDEV_TYPE_VETH;
     netdev->ops = &veth_ops;
     netdev->priv = (void*)veth2;
+    for (int i = 0; i < 6; ++i)
+        veth2->addr[i] = genrand_int32() & 0xff;
+    memcpy(netdev->addr, veth2->addr, sizeof(veth2->addr));
 
-    netdev->flags |= NETDEV_FLAG_RUNNING;
+    netdev->flags |= NETDEV_FLAG_RUNNING | NETDEV_FLAG_NOARP;
     netdev_register(net_ns_2, netdev);
 }

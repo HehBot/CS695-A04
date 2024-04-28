@@ -164,7 +164,7 @@ int socketioctl(struct socket* s, int req, void* arg)
         dev = netdev_by_name(net_ns, ifreq->ifr_name);
         if (!dev)
             return -1;
-        if (dev->type != NETDEV_TYPE_ETHERNET)
+        if (dev->type != NETDEV_TYPE_ETHERNET && dev->type != NETDEV_TYPE_VETH)
             return -1;
         memcpy(ifreq->ifr_hwaddr.sa_data, dev->addr, dev->alen);
         break;
