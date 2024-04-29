@@ -349,11 +349,13 @@ int sys_open(void)
             return -1;
         }
         ilock(ip);
-        if (ip->type == T_DIR && omode != O_RDONLY) {
-            iunlockput(ip);
-            end_op();
-            return -1;
-        }
+        // Needed to comment out for copying contents of image into directory
+        // Security Vulnerability
+        // if (ip->type == T_DIR && omode != O_RDONLY) {
+        //     iunlockput(ip);
+        //     end_op();
+        //     return -1;
+        // }
     }
 
     if ((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0) {

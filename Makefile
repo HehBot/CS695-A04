@@ -201,6 +201,8 @@ UPROGS=\
 	usertests\
 	wc\
 	zombie\
+	conductor\
+	inf_sleep\
 
 NET_UPROGS=\
     ifconfig\

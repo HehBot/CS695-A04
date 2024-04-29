@@ -363,6 +363,7 @@ int fork(void)
     np->cwd = idup(curproc->cwd);
     np->root = idup(curproc->root);
     np->net_ns = get_net_ns(curproc->net_ns);
+    np->cpu_mask = curproc->cpu_mask;
 
     safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
