@@ -38,14 +38,14 @@ int main(int argc, char* argv[])
     addr = (unsigned char*)&peer.sin_addr;
     printf(1, "accept: success, peer=%d.%d.%d.%d:%d\n", addr[0], addr[1], addr[2], addr[3], ntoh16(peer.sin_port));
     while (1) {
-        ret = recv(acc, buf, sizeof(buf));
+        ret = read(acc, buf, sizeof(buf));
         if (ret <= 0) {
             printf(1, "EOF\n");
             break;
         }
         printf(1, "recv: %d bytes data received\n", ret);
         hexdump(buf, ret);
-        send(acc, buf, ret);
+        write(acc, buf, ret);
     }
     close(soc);
     exit();

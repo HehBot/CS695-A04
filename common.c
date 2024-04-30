@@ -116,9 +116,25 @@ cksum16(uint16_t* data, uint16_t size, uint32_t init)
     if (size) {
         sum += *(uint8_t*)data;
     }
-    sum = (sum & 0xffff) + (sum >> 16);
-    sum = (sum & 0xffff) + (sum >> 16);
+    while (sum >> 16)
+        sum = (sum & 0xffff) + ((sum >> 16) & 0xffff);
     return ~(uint16_t)sum;
+}
+uint16_t recompute_cksum16(uint16_t old_checksum, uint32_t old_addr, uint32_t new_addr)
+{
+    uint16_t old_s1 = (old_addr & 0xffff);
+    uint16_t old_s2 = ((old_addr >> 16) & 0xffff);
+    uint32_t sum = (uint32_t)~old_checksum - old_s1 - old_s2;
+    while (sum >> 16)
+        sum = (sum & 0xffff) + ((sum >> 16) & 0xffff);
+
+    uint16_t new_s1 = new_addr & 0xffff;
+    uint16_t new_s2 = (new_addr >> 16) & 0xffff;
+    sum = sum + new_s1 + new_s2;
+    while (sum >> 16)
+        sum = (sum & 0xffff) + ((sum >> 16) & 0xffff);
+    sum = (uint16_t)~sum;
+    return sum;
 }
 
 void init_queue(struct queue_head* queue)

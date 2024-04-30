@@ -261,6 +261,7 @@ uint16_t ntoh16(uint16_t n);
 uint32_t hton32(uint32_t h);
 uint32_t ntoh32(uint32_t n);
 uint16_t cksum16(uint16_t* data, uint16_t size, uint32_t init);
+uint16_t recompute_cksum16(uint16_t old_checksum, uint32_t old_addr, uint32_t new_addr);
 void init_queue(struct queue_head*);
 struct queue_entry* queue_push(struct queue_head* queue, void* data, size_t size);
 struct queue_entry* queue_pop(struct queue_head* queue);

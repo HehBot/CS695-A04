@@ -49,8 +49,6 @@ SYSCALL(bind)
 SYSCALL(listen)
 SYSCALL(accept)
 SYSCALL(connect)
-SYSCALL(recv)
-SYSCALL(send)
 SYSCALL(recvfrom)
 SYSCALL(sendto)
 

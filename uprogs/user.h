@@ -37,10 +37,8 @@ int connect(int, struct sockaddr*, int);
 int bind(int, struct sockaddr*, int);
 int listen(int, int);
 int accept(int, struct sockaddr*, int*);
-int recv(int, char*, int);
-int send(int, char*, int);
-int recvfrom(int, char*, int, struct sockaddr*, int*);
-int sendto(int, char*, int, struct sockaddr*, int);
+int recvfrom(int, void*, int, struct sockaddr*, int*);
+int sendto(int, void const*, int, struct sockaddr*, int);
 int veth(int, int);
 
 #define NS_PID (1 << 0)

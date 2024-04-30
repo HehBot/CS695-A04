@@ -12,6 +12,8 @@
 
 #define IP_ROUTE_TABLE_SIZE 8
 
+#define TRANSPORT_CHECKSUM_OFFSET 16
+
 struct ip_route {
     uint8_t used;
     ip_addr_t network;
@@ -420,6 +422,11 @@ ip_tx(struct netif* netif, uint8_t protocol, const uint8_t* buf, size_t len, con
         }
         if (netif) {
             src = &((struct netif_ip*)netif)->unicast;
+        } else {
+            // need to recompute transport checksum
+            // default is 0x0
+            uint16_t* cksum_ptr = (uint16_t*)(buf + TRANSPORT_CHECKSUM_OFFSET);
+            *cksum_ptr = recompute_cksum16(*cksum_ptr, 0x0, ((struct netif_ip*)route->netif)->unicast);
         }
         netif = route->netif;
         nexthop = (ip_addr_t*)(route->nexthop ? &route->nexthop : dst);

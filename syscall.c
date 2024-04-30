@@ -103,8 +103,6 @@ extern int sys_connect(void);
 extern int sys_bind(void);
 extern int sys_listen(void);
 extern int sys_accept(void);
-extern int sys_recv(void);
-extern int sys_send(void);
 extern int sys_recvfrom(void);
 extern int sys_sendto(void);
 
@@ -150,8 +148,6 @@ static int (*syscalls[])(void) = {
     [SYS_bind] = sys_bind,
     [SYS_listen] = sys_listen,
     [SYS_accept] = sys_accept,
-    [SYS_recv] = sys_recv,
-    [SYS_send] = sys_send,
     [SYS_recvfrom] = sys_recvfrom,
     [SYS_sendto] = sys_sendto,
 

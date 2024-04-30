@@ -79,32 +79,6 @@ int sys_accept(void)
     return afd;
 }
 
-int sys_recv(void)
-{
-    struct file* f;
-    int n;
-    char* p;
-
-    if (argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argptr(1, &p, n) < 0)
-        return -1;
-    if (f->type != FD_SOCKET)
-        return -1;
-    return socketread(f->socket, p, n);
-}
-
-int sys_send(void)
-{
-    struct file* f;
-    int n;
-    char* p;
-
-    if (argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argptr(1, &p, n) < 0)
-        return -1;
-    if (f->type != FD_SOCKET)
-        return -1;
-    return socketwrite(f->socket, p, n);
-}
-
 int sys_recvfrom(void)
 {
     struct file* f;

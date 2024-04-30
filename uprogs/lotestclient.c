@@ -20,10 +20,10 @@ int main(int argc, char* argv[])
     }
     char* hello = "Hello from lo client";
     size_t l = strlen(hello);
-    send(soc, hello, l);
+    write(soc, hello, l);
 
     char buf[128];
-    size_t recv_len = recv(soc, &buf[0], sizeof(buf));
+    size_t recv_len = read(soc, &buf[0], sizeof(buf));
     if (recv_len != l) {
         printf(2, "receive size mismatch! %d recv, expected %d\n", recv_len, l);
         close(soc);

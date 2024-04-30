@@ -186,10 +186,7 @@ tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf,
     if (cb->iface != NULL)
         self = ((struct netif_ip*)cb->iface)->unicast;
     else
-        // FIXME what to do here?
-        // apparently TCP checksum modification is done by IP
-        // self = 0x100007f;
-        self = 0x100a8c0;
+        self = 0x0;
     peer = cb->peer.addr;
 
     uint32_t pseudo = 0;
