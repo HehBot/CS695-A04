@@ -4,8 +4,9 @@
 #include "types.h"
 #include "user.h"
 
-void int_to_string(int num, char *str) {
-    char *p = str;
+void int_to_string(int num, char* str)
+{
+    char* p = str;
     if (num == 0) {
         *p++ = '0';
     } else {
@@ -22,42 +23,47 @@ void int_to_string(int num, char *str) {
     }
 }
 
-void cp_dir_without_dots(char* src, char* dest){
-    int fd_src = open(src, O_RDWR);
+void cp_dir_without_dots(char* src, char* dest)
+{
+    int fd_src = open(src, O_RDONLY);
     if (fd_src < 0) {
         printf(2, "cp: cannot open %s\n", src);
         exit();
     }
-    
-    int fd_dest = open(dest, O_RDWR);
-    if (fd_dest < 0) {
-        printf(2, "cp: cannot open %s for writing\n", dest);
-        exit();
-    }
 
     struct dirent de;
-    read(fd_dest, &de, sizeof(de));
-    read(fd_dest, &de, sizeof(de));
-
     while (read(fd_src, &de, sizeof(de)) == sizeof(de)) {
         if (de.inum == 0)
             continue;
-        if(strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0 || strcmp(de.name, "image") == 0 || strcmp(de.name, "containers") == 0){
+        if (strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0 || strcmp(de.name, "image") == 0 || strcmp(de.name, "containers") == 0 || strcmp(de.name, "README") == 0 || strcmp(de.name, "console") == 0 || strcmp(de.name, "proc") == 0) {
             continue;
         }
-        if (write(fd_dest, &de, sizeof(de)) != sizeof(de)) {
-            printf(2, "cp: write error");
-            exit();
+        if (fork() == 0) {
+            char srcfile[100];
+            strcpy(&srcfile[0], src);
+            srcfile[strlen(src)] = '/';
+            strcpy(&srcfile[strlen(src) + 1], de.name);
+            srcfile[strlen(src) + 1 + strlen(de.name)] = '\0';
+
+            char destfile[100];
+            strcpy(&destfile[0], dest);
+            destfile[strlen(dest)] = '/';
+            strcpy(&destfile[strlen(dest) + 1], de.name);
+            destfile[strlen(dest) + 1 + strlen(de.name)] = '\0';
+
+            printf(1, "%s --> %s\n", srcfile, destfile);
+
+            char* argv[] = { "/cp", srcfile, destfile, NULL };
+            exec(argv[0], argv);
         }
-        if(strcmp(de.name, "README") == 0){
-            break;
-        }
+        while (wait() > 0)
+            ;
     }
     close(fd_src);
-    close(fd_dest);
 }
 
-void help(){
+void help()
+{
     printf(1, "Usage: \n");
     printf(1, "conductor help: Display this help message\n");
     printf(1, "conductor init: Initialize the image and containers directories\n");
@@ -65,86 +71,63 @@ void help(){
     printf(1, "conductor exec <pid> <command> [args]: Execute a command in an existing container with the given init PID\n");
 }
 
-int main(int argc, char* argv[]){
-    if(argc <= 1){
+int main(int argc, char* argv[])
+{
+    if (argc <= 1) {
         help();
         exit();
     }
-    
+
     char* cmd = argv[1];
-    if(strcmp(cmd, "help") == 0){
+    if (strcmp(cmd, "help") == 0) {
         help();
-        exit();
-    }
-    else if(strcmp(cmd, "init") == 0){
-        mkdir("/image");
+    } else if (strcmp(cmd, "init") == 0)
         mkdir("/containers");
-        cp_dir_without_dots("/", "/image");
-        exit();
-    }
-    else if(strcmp(cmd, "run") == 0){
+    else if (strcmp(cmd, "run") == 0) {
         int p[2];
         pipe(p);
-        char container_path[50] = "/containers/";
-        
+        char container_path[50] = "/containers/1";
+
+        // int_to_string(child_pid, &container_path[strlen(container_path)]);
+        mkdir(container_path);
+
+        cp_dir_without_dots("/image/sample", container_path);
+
         unshare(NS_NET | NS_PID);
 
         int child_pid = fork();
-        if(child_pid == 0){
+        if (child_pid == 0) {
             read(p[0], &container_path[12], 30);
             chroot(container_path);
             chdir("/");
+            mount_procfs("/");
             char** args = &argv[2];
             exec(args[0], args);
         }
-        
-        int_to_string(child_pid, &container_path[12]);
-        mkdir(container_path);
-        
-        cp_dir_without_dots("/image", container_path);
-
-        mount_procfs(container_path);
 
         write(p[1], &container_path[12], 30);
 
-        // wait();
-        // Returns immediately since init of new pid namespace is not it's child
-        
-        // Workaround to never end parent in case of sh, otherwise console input interferes
-        if(strcmp(argv[2], "sh") == 0){
-            while (1)
-            {
-                sleep(10000);
-            }
-        }
-        exit();
-    }
-    else if(strcmp(cmd, "exec") == 0){
+        wait();
+    } else if (strcmp(cmd, "exec") == 0) {
         int target_pid = atoi(argv[2]);
-        if(setns(target_pid, NS_NET | NS_PID) < 0){
+        if (setns(target_pid, NS_NET | NS_PID) < 0) {
             printf(2, "Container not running\n");
             exit();
         }
 
-        char container_path[50] = "/containers/";
-        int_to_string(target_pid, &container_path[12]);
+        char container_path[50] = "/containers/1";
+        // int_to_string(target_pid, &container_path[12]);
 
         int child_pid = fork();
-        if(child_pid == 0){
+        if (child_pid == 0) {
             chroot(container_path);
             chdir("/");
             char** args = &argv[3];
             exec(args[0], args);
         }
 
-        if(strcmp(argv[3], "sh") == 0){
-            sleep(10000);
-        }
-        exit();
-    }
-    else{
+        wait();
+    } else
         help();
-        exit();
-    }
     exit();
 }

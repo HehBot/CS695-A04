@@ -1,7 +1,6 @@
 // init: The initial user-level program
 
 #include "fcntl.h"
-#include "stat.h"
 #include "types.h"
 #include "user.h"
 
@@ -45,27 +44,12 @@ void setup_if(char* interface, char* ipaddr, char* nmask)
 
 int main(void)
 {
-    mount_procfs("/");
     setup_std();
-    setup_if("net1", "172.16.100.2", "255.255.255.0");
+    close(0);
+
     setup_if("lo", "127.0.0.1", "255.0.0.0");
 
-    int pid, wpid;
-
-    for (;;) {
-        printf(1, "init: starting sh\n");
-        pid = fork();
-        if (pid < 0) {
-            printf(1, "init: fork failed\n");
-            exit();
-        }
-        if (pid == 0) {
-            char* argv[] = { "sh", NULL };
-            exec("sh", argv);
-            printf(1, "init: exec sh failed\n");
-            exit();
-        }
-        while ((wpid = wait()) >= 0 && wpid != pid)
-            printf(1, "[init] zombie: %d\n", wpid);
-    }
+    for (;;)
+        while (wait() >= 0)
+            ;
 }

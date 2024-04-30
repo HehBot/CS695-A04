@@ -346,10 +346,8 @@ int fork(void)
         return -1;
     }
     np->sz = curproc->sz;
-    if (!entering_new_pid_ns)
+    if (!entering_new_pid_ns || new_pid_ns_init)
         np->parent = curproc;
-    else if (new_pid_ns_init)
-        np->parent = NULL;
     else
         np->parent = np->pid_ns->initproc;
     *np->tf = *curproc->tf;
@@ -404,10 +402,15 @@ void exit(void)
                 if (i == -1)
                     continue;
 
-                // move process to global namespace
-                // can't call pid_ns_put yet as the process may be running on another cpu
-                p->pid[0] = p->global_pid;
-                p->parent = root_pid_ns.initproc;
+                if (p->pid_ns->initproc != p) {
+                    // move non-init processes to global namespace
+                    // can't call pid_ns_put yet as the process may be running on another cpu
+                    p->pid[0] = p->global_pid;
+                    p->parent = root_pid_ns.initproc;
+                } else {
+                    // init process parent should see proper pid on wait
+                    p->pid[0] = p->pid[1];
+                }
                 p->killed = 1;
             }
         }

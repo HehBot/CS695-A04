@@ -229,7 +229,7 @@ int sys_unlink(void)
     }
 
     memset(&de, 0, sizeof(de));
-    if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+    if (writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
         panic("unlink: writei");
     if (ip->type == T_DIR) {
         dp->nlink--;
@@ -349,13 +349,11 @@ int sys_open(void)
             return -1;
         }
         ilock(ip);
-        // Needed to comment out for copying contents of image into directory
-        // Security Vulnerability
-        // if (ip->type == T_DIR && omode != O_RDONLY) {
-        //     iunlockput(ip);
-        //     end_op();
-        //     return -1;
-        // }
+        if (ip->type == T_DIR && omode != O_RDONLY) {
+            iunlockput(ip);
+            end_op();
+            return -1;
+        }
     }
 
     if ((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0) {

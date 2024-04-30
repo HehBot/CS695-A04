@@ -351,27 +351,29 @@ static void procfs_ipopulate(struct inode* ip)
 
         acquire(&ptable.lock);
         for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-            int depth = namespace_depth(curproc->pid_ns, p->pid_ns);
-            if (depth < 0)
-                continue;
-            struct dirent de;
-            char name[DIRSIZ];
-            snprintf(name, 20, "%d", p->pid[depth]);
-            strncpy(de.name, name, DIRSIZ);
-            de.inum = p->procfs_nums[0];
-            if (off + sizeof(de) >= BSIZE) {
-                ip->size += off;
-                cur_block++;
-                if (root_proc_blocks[cur_block] == 0) {
-                    root_proc_blocks[cur_block] = ++proc_block_counter;
+            if (p->state != UNUSED) {
+                int depth = namespace_depth(curproc->pid_ns, p->pid_ns);
+                if (depth < 0)
+                    continue;
+                struct dirent de;
+                char name[DIRSIZ];
+                snprintf(name, 20, "%d", p->pid[depth]);
+                strncpy(de.name, name, DIRSIZ);
+                de.inum = p->procfs_nums[0];
+                if (off + sizeof(de) >= BSIZE) {
+                    ip->size += off;
+                    cur_block++;
+                    if (root_proc_blocks[cur_block] == 0) {
+                        root_proc_blocks[cur_block] = ++proc_block_counter;
+                    }
+                    ip->addrs[cur_block] = root_proc_blocks[cur_block];
+                    bp = bget(PROCDEV, root_proc_blocks[cur_block]);
+                    bp->flags &= B_DIRTY;
+                    off = 0;
                 }
-                ip->addrs[cur_block] = root_proc_blocks[cur_block];
-                bp = bget(PROCDEV, root_proc_blocks[cur_block]);
-                bp->flags &= B_DIRTY;
-                off = 0;
+                memmove(bp->data + off, &de, sizeof(de));
+                off += sizeof(de);
             }
-            memmove(bp->data + off, &de, sizeof(de));
-            off += sizeof(de);
         }
         release(&ptable.lock);
         brelse(bp);
@@ -381,25 +383,27 @@ static void procfs_ipopulate(struct inode* ip)
         acquire(&ptable.lock);
         bp = bget(PROCDEV, ip->addrs[0]);
         for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-            if (ip->inum == p->procfs_nums[0]) {
-                ip->addrs[0] = p->procfs_nums[0];
-                struct dirent de;
-                char name[DIRSIZ];
+            if (p->state != UNUSED) {
+                if (ip->inum == p->procfs_nums[0]) {
+                    ip->addrs[0] = p->procfs_nums[0];
+                    struct dirent de;
+                    char name[DIRSIZ];
 
-                snprintf(name, 20, "cmd");
-                strncpy(de.name, name, DIRSIZ);
-                de.inum = p->procfs_nums[1];
-                memmove(bp->data + off, &de, sizeof(de));
-                off += sizeof(de);
+                    snprintf(name, 20, "cmd");
+                    strncpy(de.name, name, DIRSIZ);
+                    de.inum = p->procfs_nums[1];
+                    memmove(bp->data + off, &de, sizeof(de));
+                    off += sizeof(de);
 
-                ip->type = T_DIR;
-                break;
-            } else if (ip->inum == p->procfs_nums[1]) {
-                memmove(bp->data + off, p->name, sizeof(p->name));
-                off += sizeof(p->name);
+                    ip->type = T_DIR;
+                    break;
+                } else if (ip->inum == p->procfs_nums[1]) {
+                    memmove(bp->data + off, p->name, sizeof(p->name));
+                    off += sizeof(p->name);
 
-                ip->type = T_FILE;
-                break;
+                    ip->type = T_FILE;
+                    break;
+                }
             }
         }
         ip->size += off;

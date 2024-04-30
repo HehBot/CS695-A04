@@ -203,6 +203,7 @@ UPROGS=\
 	zombie\
 	conductor\
 	inf_sleep\
+	container_init\
 
 NET_UPROGS=\
     ifconfig\

@@ -102,7 +102,7 @@ void processdir(uint currino, uint parentino)
         case DT_DIR: {
             if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
                 continue;
-            uint newino = ialloc(T_DIR);
+            newino = ialloc(T_DIR);
             chdir(de->d_name);
             processdir(newino, currino);
             chdir("..");

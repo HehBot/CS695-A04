@@ -7,6 +7,7 @@ UPROGS_FULL_PATH = $(UPROGS:%=$(FSROOT)/%)
 ULIB = ulib.a
 
 all: $(UPROGS_FULL_PATH)
+	./prepare_sample_image
 
 $(FSROOT)/forktest: forktest.o ulib.o usys.o
 	# forktest has less library code linked in - needs to be small
@@ -24,8 +25,8 @@ $(ULIB): ulib.o usys.o printf.o umalloc.o
 	$(AR) -rcs $@ $^
 
 clean:
-	$(RM) *.a *.o *.asm *.sym
-	$(RM) -r $(FSROOT)
+	@$(RM) *.a *.o *.d *.asm *.sym
+	@$(RM) -r $(FSROOT)
 
 .PHONY: all clean
 .PRECIOUS: %.o
