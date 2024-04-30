@@ -27,6 +27,7 @@ SYSCALL(mkdir)
 SYSCALL(chdir)
 SYSCALL(link)
 SYSCALL(unlink)
+SYSCALL(rename)
 SYSCALL(getcwd)
 
 SYSCALL(dup)
@@ -39,7 +40,7 @@ SYSCALL(sbrk)
 SYSCALL(sleep)
 SYSCALL(uptime)
 
-# iotcl
+# ioctl
 SYSCALL(ioctl)
 
 # socket

@@ -20,6 +20,7 @@ int exec(char*, char**);
 int open(char const*, int);
 int mknod(char const*, short, short);
 int unlink(char const*);
+int rename(char const*, char const*);
 int fstat(int fd, struct stat*);
 int link(char const*, char const*);
 int mkdir(char const*);

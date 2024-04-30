@@ -92,6 +92,7 @@ extern int sys_read(void);
 extern int sys_sbrk(void);
 extern int sys_sleep(void);
 extern int sys_unlink(void);
+extern int sys_rename(void);
 extern int sys_wait(void);
 extern int sys_write(void);
 extern int sys_uptime(void);
@@ -141,6 +142,7 @@ static int (*syscalls[])(void) = {
     [SYS_link] = sys_link,
     [SYS_mkdir] = sys_mkdir,
     [SYS_close] = sys_close,
+    [SYS_rename] = sys_rename,
 
     [SYS_ioctl] = sys_ioctl,
     [SYS_socket] = sys_socket,

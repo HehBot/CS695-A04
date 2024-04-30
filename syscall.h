@@ -23,28 +23,29 @@
 #define SYS_link 19
 #define SYS_mkdir 20
 #define SYS_close 21
+#define SYS_rename 22
 
-#define SYS_ioctl 22
-#define SYS_socket 23
-#define SYS_connect 24
-#define SYS_bind 25
-#define SYS_listen 26
-#define SYS_accept 27
-#define SYS_recv 28
-#define SYS_send 29
-#define SYS_recvfrom 30
-#define SYS_sendto 31
+#define SYS_ioctl 23
+#define SYS_socket 24
+#define SYS_connect 25
+#define SYS_bind 26
+#define SYS_listen 27
+#define SYS_accept 28
+#define SYS_recv 29
+#define SYS_send 30
+#define SYS_recvfrom 31
+#define SYS_sendto 32
 
-#define SYS_unshare 32
-#define SYS_getgpid 33
-#define SYS_chroot 34
-#define SYS_dup2 35
-#define SYS_getcwd 36
+#define SYS_unshare 33
+#define SYS_getgpid 34
+#define SYS_chroot 35
+#define SYS_dup2 36
+#define SYS_getcwd 37
 
-#define SYS_mount_procfs 37
-#define SYS_cpu_restrict 38
+#define SYS_mount_procfs 38
+#define SYS_cpu_restrict 39
 
-#define SYS_veth 39
-#define SYS_setns 40
+#define SYS_veth 40
+#define SYS_setns 41
 
 #endif // SYSCALL_H

@@ -86,12 +86,10 @@ int main(int argc, char* argv[])
     else if (strcmp(cmd, "run") == 0) {
         int p[2];
         pipe(p);
-        char container_path[50] = "/containers/1";
+        char container_path[50] = "/containers/";
 
-        // int_to_string(child_pid, &container_path[strlen(container_path)]);
-        mkdir(container_path);
-
-        cp_dir_without_dots("/image/sample", container_path);
+        mkdir("/image/sample/temp");
+        cp_dir_without_dots("/image/sample", "/image/sample/temp");
 
         unshare(NS_NET | NS_PID);
 
@@ -105,6 +103,9 @@ int main(int argc, char* argv[])
             exec(args[0], args);
         }
 
+        int_to_string(child_pid, &container_path[strlen(container_path)]);
+        rename("/image/sample/temp", container_path);
+
         write(p[1], &container_path[12], 30);
 
         wait();
@@ -115,8 +116,8 @@ int main(int argc, char* argv[])
             exit();
         }
 
-        char container_path[50] = "/containers/1";
-        // int_to_string(target_pid, &container_path[12]);
+        char container_path[50] = "/containers/";
+        int_to_string(target_pid, &container_path[12]);
 
         int child_pid = fork();
         if (child_pid == 0) {

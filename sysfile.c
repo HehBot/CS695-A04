@@ -563,3 +563,88 @@ int sys_getcwd(void)
         return -1;
     return path_of_dir_inode(p, n, myproc()->cwd);
 }
+
+int sys_rename(void)
+{
+    char oldname[DIRSIZ], newname[DIRSIZ], *new, *old;
+    struct inode *old_dp, *new_dp, *ip;
+
+    if (argstr(0, &old) < 0 || argstr(1, &new) < 0)
+        return -1;
+
+    begin_op();
+    if ((old_dp = nameiparent(old, oldname)) == 0) {
+        end_op();
+        return -1;
+    }
+    if ((new_dp = nameiparent(new, newname)) == 0) {
+        iunlockput(old_dp);
+        end_op();
+        return -1;
+    }
+
+    if (namecmp(oldname, ".") == 0 || namecmp(oldname, "..") == 0) {
+        iput(new_dp);
+        goto bad_same;
+    }
+
+    if (old_dp->inum == new_dp->inum) {
+        iput(new_dp);
+        new_dp = NULL;
+        ilock(old_dp);
+
+        uint off;
+        if ((ip = dirlookup(old_dp, oldname, &off)) == NULL)
+            goto bad_same;
+        iput(ip);
+
+        struct dirent de;
+        if (readi(old_dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+            panic("rename: readi");
+        memcpy(de.name, newname, DIRSIZ);
+        if (writei(new_dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+            panic("rename: writei");
+
+        iunlockput(old_dp);
+    } else {
+        ilock(old_dp);
+        ilock(new_dp);
+
+        uint off;
+        if ((ip = dirlookup(new_dp, newname, &off)) != NULL) {
+            iput(ip);
+            goto bad;
+        }
+        if ((ip = dirlookup(old_dp, oldname, &off)) == NULL)
+            goto bad;
+
+        struct dirent de;
+        memset(&de, 0, sizeof(de));
+        if (writei(old_dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+            panic("reoldname: writei");
+        dirlink(new_dp, newname, ip->inum);
+
+        ilock(ip);
+        if (ip->type == T_DIR) {
+            old_dp->nlink--;
+            new_dp->nlink++;
+            iupdate(old_dp);
+            iupdate(new_dp);
+        }
+        iunlockput(ip);
+
+        iunlockput(old_dp);
+        iunlockput(new_dp);
+    }
+
+    end_op();
+
+    return 0;
+
+bad:
+    iunlockput(new_dp);
+bad_same:
+    iunlockput(old_dp);
+    end_op();
+    return -1;
+}

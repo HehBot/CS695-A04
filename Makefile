@@ -190,6 +190,7 @@ UPROGS=\
 	ln\
 	ls\
 	ps\
+	mv\
 	mkdir\
 	rm\
 	cp\
