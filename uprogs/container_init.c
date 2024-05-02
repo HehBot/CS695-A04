@@ -32,13 +32,17 @@ void setup_std(void)
 void setup_if(char* interface, char* ipaddr, char* nmask)
 {
     char* argv1[] = { "ifconfig", interface, ipaddr, "netmask", nmask, NULL };
-    if (fork() == 0)
+    if (fork() == 0) {
         exec(argv1[0], argv1);
+        exit();
+    }
     wait();
 
     char* argv2[] = { "ifconfig", interface, "up", NULL };
-    if (fork() == 0)
+    if (fork() == 0) {
         exec(argv2[0], argv2);
+        exit();
+    }
     wait();
 }
 

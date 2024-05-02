@@ -398,13 +398,13 @@ void exit(void)
                 if (i == -1)
                     continue;
 
-                if (p->pid_ns->initproc != p) {
-                    // move non-init processes to global namespace
+                if (p->parent->pid_ns == curproc->pid_ns) {
+                    // makes to-be orphaned processes children of global init
                     // can't call pid_ns_put yet as the process may be running on another cpu
                     p->pid[0] = p->global_pid;
                     p->parent = root_pid_ns.initproc;
                 } else {
-                    // init process parent should see proper pid on wait
+                    // parent should see proper pid on wait
                     p->pid[0] = p->pid[1];
                 }
                 p->killed = 1;
