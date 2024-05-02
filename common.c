@@ -5,8 +5,6 @@
 #include "defs.h"
 #include "types.h"
 
-#define DEBUG
-
 #define isascii(x) ((x >= 0x00) && (x <= 0x7f))
 #define isprint(x) ((x >= 0x20) && (x <= 0x7e))
 
@@ -104,7 +102,7 @@ ntoh32(uint32_t n)
 }
 
 uint16_t
-cksum16(uint16_t* data, uint16_t size, uint32_t init)
+cksum16(uint16_t const* data, uint16_t size, uint32_t init)
 {
     uint32_t sum;
 

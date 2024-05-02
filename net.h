@@ -44,6 +44,8 @@ struct netdev_ops {
     int (*xmit)(struct netdev* dev, uint16_t type, const uint8_t* packet, size_t size, const void* dst);
 };
 
+typedef struct net_ns net_ns_t;
+
 struct netdev {
     struct netdev* next;
     struct netif* ifs;
@@ -57,17 +59,18 @@ struct netdev {
     uint8_t addr[16];
     uint8_t peer[16];
     uint8_t broadcast[16];
+    net_ns_t* net_ns;
     struct netdev_ops* ops;
     void* priv;
 };
 
-typedef struct net_ns {
+struct net_ns {
     struct netdev* devices;
     struct netdev* lo;
     int next_index;
 
     struct spinlock lock; // protects nr_proc
     int nr_proc;
-} net_ns_t;
+};
 
 #endif // NET_H

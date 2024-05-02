@@ -4,6 +4,7 @@
 #include "common.h"
 #include "defs.h"
 #include "ip.h"
+#include "proc.h"
 #include "socket.h"
 #include "spinlock.h"
 #include "types.h"
@@ -66,6 +67,7 @@ struct tcp_cb {
 
     uint8_t state;
     struct netif* iface;
+    net_ns_t* net_ns;
     uint16_t port;
     struct {
         ip_addr_t addr;
@@ -159,6 +161,18 @@ tcp_cb_clear(struct tcp_cb* cb)
 
     cb->used = 0;
     cb->state = TCP_CB_STATE_CLOSED;
+    cb->iface = NULL;
+    cb->net_ns = NULL;
+    cb->port = 0;
+    memset(&cb->peer, 0, sizeof(cb->peer));
+    memset(&cb->snd, 0, sizeof(cb->snd));
+    cb->iss = 0;
+    memset(&cb->rcv, 0, sizeof(cb->rcv));
+    cb->irs = 0;
+    memset(&cb->txq, 0, sizeof(cb->txq));
+    memset(&cb->window[0], 0, sizeof(cb->window));
+    cb->parent = NULL;
+    memset(&cb->backlog, 0, sizeof(cb->backlog));
     return 0;
 }
 
@@ -198,7 +212,7 @@ tcp_tx(struct tcp_cb* cb, uint32_t seq, uint32_t ack, uint8_t flg, uint8_t* buf,
     pseudo += hton16(sizeof(struct tcp_hdr) + len);
     hdr->sum = cksum16((uint16_t*)hdr, sizeof(struct tcp_hdr) + len, pseudo);
 
-    ip_tx(cb->iface, IP_PROTOCOL_TCP, (uint8_t*)hdr, sizeof(struct tcp_hdr) + len, &peer);
+    ip_tx(cb->iface, cb->net_ns, IP_PROTOCOL_TCP, (uint8_t*)hdr, sizeof(struct tcp_hdr) + len, &peer);
     tcp_txq_add(cb, hdr, sizeof(struct tcp_hdr) + len);
     kfree(segment);
     return len;
@@ -520,6 +534,7 @@ int tcp_api_open(void)
     for (cb = cb_table; cb < array_tailof(cb_table); cb++) {
         if (!cb->used) {
             cb->used = 1;
+            cb->net_ns = myproc()->net_ns;
             init_queue(&cb->backlog);
             release(&cb_table_lock);
             return array_offset(cb_table, cb);

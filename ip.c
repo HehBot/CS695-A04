@@ -20,6 +20,7 @@ struct ip_route {
     ip_addr_t netmask;
     ip_addr_t nexthop;
     struct netif* netif;
+    net_ns_t* net_ns;
 };
 
 struct ip_protocol {
@@ -113,8 +114,7 @@ void ip_dump(struct netif* netif, uint8_t* packet, size_t plen)
  * IP ROUTING
  */
 
-static int
-ip_route_add(ip_addr_t network, ip_addr_t netmask, ip_addr_t nexthop, struct netif* netif)
+int ip_route_add(ip_addr_t network, ip_addr_t netmask, ip_addr_t nexthop, struct netif* netif, net_ns_t* net_ns)
 {
     struct ip_route* route;
 
@@ -125,6 +125,7 @@ ip_route_add(ip_addr_t network, ip_addr_t netmask, ip_addr_t nexthop, struct net
             route->netmask = netmask;
             route->nexthop = nexthop;
             route->netif = netif;
+            route->net_ns = net_ns;
             return 0;
         }
     }
@@ -147,12 +148,12 @@ ip_route_del(struct netif* netif)
 }
 
 static struct ip_route*
-ip_route_lookup(const struct netif* netif, const ip_addr_t* dst)
+ip_route_lookup(const struct netif* netif, const ip_addr_t* dst, net_ns_t* net_ns)
 {
     struct ip_route *route, *candidate = NULL;
 
     for (route = route_table; route < array_tailof(route_table); route++) {
-        if (route->used && (*dst & route->netmask) == route->network && (!netif || route->netif == netif)) {
+        if (route->used && (*dst & route->netmask) == route->network && (!netif || route->netif == netif) && (!net_ns || route->net_ns == net_ns)) {
             if (!candidate || ntoh32(candidate->netmask) < ntoh32(route->netmask)) {
                 candidate = route;
             }
@@ -166,7 +167,7 @@ ip_route_lookup(const struct netif* netif, const ip_addr_t* dst)
  */
 
 struct netif*
-ip_netif_alloc(ip_addr_t unicast, ip_addr_t netmask, ip_addr_t gateway)
+ip_netif_alloc(ip_addr_t unicast, ip_addr_t netmask, ip_addr_t gateway, net_ns_t* net_ns)
 {
     struct netif_ip* iface;
     ip_addr_t gw;
@@ -175,28 +176,29 @@ ip_netif_alloc(ip_addr_t unicast, ip_addr_t netmask, ip_addr_t gateway)
     if (!iface) {
         return NULL;
     }
-    ((struct netif*)iface)->next = NULL;
-    ((struct netif*)iface)->family = NETIF_FAMILY_IPV4;
-    ((struct netif*)iface)->dev = NULL;
+    iface->netif.next = NULL;
+    iface->netif.family = NETIF_FAMILY_IPV4;
+    iface->netif.dev = NULL;
     iface->unicast = unicast;
     iface->netmask = netmask;
     iface->network = iface->unicast & iface->netmask;
     iface->broadcast = iface->network | ~iface->netmask;
-    if (ip_route_add(iface->network, iface->netmask, IP_ADDR_ANY, (struct netif*)iface) == -1) {
+    iface->gateway = gateway; // FIXME
+    if (ip_route_add(iface->network, iface->netmask, IP_ADDR_ANY, &iface->netif, net_ns) == -1) {
         kfree((char*)iface);
         return NULL;
     }
     if (gateway) {
-        if (ip_route_add(IP_ADDR_ANY, IP_ADDR_ANY, gateway, (struct netif*)iface) == -1) {
+        if (ip_route_add(IP_ADDR_ANY, IP_ADDR_ANY, gateway, &iface->netif, net_ns) == -1) {
             kfree((char*)iface);
             return NULL;
         }
     }
-    return (struct netif*)iface;
+    return &iface->netif;
 }
 
 struct netif*
-ip_netif_register(struct netdev* dev, const char* addr, const char* netmask, const char* gateway)
+ip_netif_register(struct netdev* dev, const char* addr, const char* netmask, const char* gateway, net_ns_t* net_ns)
 {
     struct netif* netif;
     ip_addr_t unicast, mask, gw = 0;
@@ -212,7 +214,7 @@ ip_netif_register(struct netdev* dev, const char* addr, const char* netmask, con
             return NULL;
         }
     }
-    netif = ip_netif_alloc(unicast, mask, gw);
+    netif = ip_netif_alloc(unicast, mask, gw, net_ns);
     if (!netif) {
         return NULL;
     }
@@ -223,7 +225,7 @@ ip_netif_register(struct netdev* dev, const char* addr, const char* netmask, con
     return netif;
 }
 
-int ip_netif_reconfigure(struct netif* netif, ip_addr_t unicast, ip_addr_t netmask, ip_addr_t gateway)
+int ip_netif_reconfigure(struct netif* netif, ip_addr_t unicast, ip_addr_t netmask, ip_addr_t gateway, net_ns_t* net_ns)
 {
     struct netif_ip* iface;
     ip_addr_t gw;
@@ -234,11 +236,12 @@ int ip_netif_reconfigure(struct netif* netif, ip_addr_t unicast, ip_addr_t netma
     iface->netmask = netmask;
     iface->network = iface->unicast & iface->netmask;
     iface->broadcast = iface->network | ~iface->netmask;
-    if (ip_route_add(iface->network, iface->netmask, IP_ADDR_ANY, netif) == -1) {
+    iface->gateway = gateway; // FIXME
+    if (ip_route_add(iface->network, iface->netmask, IP_ADDR_ANY, netif, net_ns) == -1) {
         return -1;
     }
     if (gateway) {
-        if (ip_route_add(IP_ADDR_ANY, IP_ADDR_ANY, gateway, netif) == -1) {
+        if (ip_route_add(IP_ADDR_ANY, IP_ADDR_ANY, gateway, netif, net_ns) == -1) {
             return -1;
         }
     }
@@ -251,7 +254,6 @@ ip_netif_by_addr(ip_addr_t* addr)
     struct netdev* dev;
     struct netif* entry;
 
-    extern net_ns_t first_net_ns;
     for (dev = myproc()->net_ns->devices; dev; dev = dev->next) {
         for (entry = dev->ifs; entry; entry = entry->next) {
             if (entry->family == NETIF_FAMILY_IPV4 && ((struct netif_ip*)entry)->unicast == *addr) {
@@ -267,7 +269,7 @@ ip_netif_by_peer(ip_addr_t* peer)
 {
     struct ip_route* route;
 
-    route = ip_route_lookup(NULL, peer);
+    route = ip_route_lookup(NULL, peer, myproc()->net_ns);
     if (!route) {
         return NULL;
     }
@@ -379,7 +381,8 @@ ip_tx_core(struct netif* netif, uint8_t protocol, const uint8_t* buf, size_t len
     hdr->ttl = 0xff;
     hdr->protocol = protocol;
     hdr->sum = 0;
-    hdr->src = src ? *src : ((struct netif_ip*)netif)->unicast;
+    hdr->src = (src == NULL ? ((struct netif_ip*)netif)->unicast : *src);
+
     hdr->dst = *dst;
     hdr->sum = cksum16((uint16_t*)hdr, hlen, 0);
     memcpy(hdr + 1, buf, len);
@@ -405,7 +408,7 @@ ip_generate_id(void)
 }
 
 ssize_t
-ip_tx(struct netif* netif, uint8_t protocol, const uint8_t* buf, size_t len, const ip_addr_t* dst)
+ip_tx(struct netif* netif, net_ns_t* nns, uint8_t protocol, const uint8_t* buf, size_t len, const ip_addr_t* dst)
 {
     struct ip_route* route;
     ip_addr_t *nexthop = NULL, *src = NULL;
@@ -415,22 +418,40 @@ ip_tx(struct netif* netif, uint8_t protocol, const uint8_t* buf, size_t len, con
     if (netif && *dst == IP_ADDR_BROADCAST) {
         nexthop = NULL;
     } else {
-        route = ip_route_lookup(NULL, dst);
+        net_ns_t* net_ns = NULL;
+        if (netif)
+            net_ns = netif->dev->net_ns;
+        else
+            net_ns = nns;
+
+        route = ip_route_lookup(NULL, dst, net_ns);
         if (!route) {
             cprintf("ip no route to host.\n");
             return -1;
         }
-        if (netif) {
+        if (netif)
             src = &((struct netif_ip*)netif)->unicast;
-        } else {
-            // need to recompute transport checksum
-            // default is 0x0
-            uint16_t* cksum_ptr = (uint16_t*)(buf + TRANSPORT_CHECKSUM_OFFSET);
-            *cksum_ptr = recompute_cksum16(*cksum_ptr, 0x0, ((struct netif_ip*)route->netif)->unicast);
-        }
         netif = route->netif;
         nexthop = (ip_addr_t*)(route->nexthop ? &route->nexthop : dst);
     }
+
+    {
+        // need to recompute transport checksum
+        uint16_t* cksum_ptr = (uint16_t*)(buf + TRANSPORT_CHECKSUM_OFFSET);
+
+        ip_addr_t s = (src == NULL ? ((struct netif_ip*)netif)->unicast : *src);
+
+        *cksum_ptr = 0;
+        uint32_t pseudo = 0;
+        pseudo += (s >> 16) & 0xffff;
+        pseudo += s & 0xffff;
+        pseudo += (*dst >> 16) & 0xffff;
+        pseudo += *dst & 0xffff;
+        pseudo += hton16((uint16_t)IP_PROTOCOL_TCP);
+        pseudo += hton16(len);
+        *cksum_ptr = cksum16((uint16_t const*)buf, len, pseudo);
+    }
+
     id = ip_generate_id();
     for (done = 0; done < len; done += slen) {
         slen = MIN((len - done), (size_t)(netif->dev->mtu - IP_HDR_SIZE_MIN));

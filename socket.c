@@ -207,10 +207,10 @@ int socketioctl(struct socket* s, int req, void* arg)
             return -1;
         iface = netdev_get_netif(dev, ifreq->ifr_addr.sa_family);
         if (iface) {
-            if (ip_netif_reconfigure(iface, ((struct sockaddr_in*)&ifreq->ifr_addr)->sin_addr, ((struct netif_ip*)iface)->netmask, ((struct netif_ip*)iface)->gateway) == -1)
+            if (ip_netif_reconfigure(iface, ((struct sockaddr_in*)&ifreq->ifr_addr)->sin_addr, ((struct netif_ip*)iface)->netmask, ((struct netif_ip*)iface)->gateway, net_ns) == -1)
                 return -1;
         } else {
-            iface = ip_netif_alloc(((struct sockaddr_in*)&ifreq->ifr_addr)->sin_addr, 0xffffffff, 0);
+            iface = ip_netif_alloc(((struct sockaddr_in*)&ifreq->ifr_addr)->sin_addr, 0xffffffff, 0, net_ns);
             if (!iface)
                 return -1;
             netdev_add_netif(dev, iface);
@@ -234,7 +234,7 @@ int socketioctl(struct socket* s, int req, void* arg)
         iface = netdev_get_netif(dev, ifreq->ifr_addr.sa_family);
         if (!iface)
             return -1;
-        if (ip_netif_reconfigure(iface, ((struct netif_ip*)iface)->unicast, ((struct sockaddr_in*)&ifreq->ifr_addr)->sin_addr, ((struct netif_ip*)iface)->gateway) == -1)
+        if (ip_netif_reconfigure(iface, ((struct netif_ip*)iface)->unicast, ((struct sockaddr_in*)&ifreq->ifr_addr)->sin_addr, ((struct netif_ip*)iface)->gateway, net_ns) == -1)
             return -1;
         break;
     case SIOCGIFBRDADDR:

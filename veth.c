@@ -9,7 +9,6 @@ struct veth_frame {
 };
 
 struct veth {
-    uint8_t addr[6];
     struct veth* peer;
     struct queue_head frame_queue;
 };
@@ -40,7 +39,6 @@ static int veth_tx_helper(struct netdev* netdev, uint16_t type, uint8_t const* f
 static int veth_tx(struct netdev* dev, uint16_t type, uint8_t const* segment, size_t size, const void* dst)
 {
     return veth_tx_helper(dev, type, segment, size);
-    // return ethernet_tx_helper(dev, type, segment, size, dst, &veth_tx_helper);
 }
 
 void veth_intr_handle(struct netdev* netdev)
@@ -56,7 +54,6 @@ void veth_intr_handle(struct netdev* netdev)
         size_t size = e->size;
         kfree((void*)e);
         netdev_receive(netdev, f->type, &f->packet[0], size);
-        // ethernet_rx_helper(netdev, f, size, netdev_receive);
         kfree((void*)f);
     }
 }
@@ -84,9 +81,6 @@ void veth_init(net_ns_t* net_ns_1, net_ns_t* net_ns_2)
     netdev->type = NETDEV_TYPE_VETH;
     netdev->ops = &veth_ops;
     netdev->priv = (void*)veth1;
-    for (int i = 0; i < 6; ++i)
-        veth1->addr[i] = genrand_int32() & 0xff;
-    memcpy(netdev->addr, veth1->addr, sizeof(veth1->addr));
 
     netdev->flags |= NETDEV_FLAG_RUNNING | NETDEV_FLAG_NOARP;
     netdev_register(net_ns_1, netdev);
@@ -95,12 +89,7 @@ void veth_init(net_ns_t* net_ns_1, net_ns_t* net_ns_2)
     netdev->type = NETDEV_TYPE_VETH;
     netdev->ops = &veth_ops;
     netdev->priv = (void*)veth2;
-    for (int i = 0; i < 6; ++i)
-        veth2->addr[i] = genrand_int32() & 0xff;
-    memcpy(netdev->addr, veth2->addr, sizeof(veth2->addr));
 
     netdev->flags |= NETDEV_FLAG_RUNNING | NETDEV_FLAG_NOARP;
     netdev_register(net_ns_2, netdev);
-
-    // ip_route_
 }

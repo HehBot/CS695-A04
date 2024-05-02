@@ -138,7 +138,7 @@ int icmp_tx(struct netif* netif, uint8_t type, uint8_t code, uint32_t values, ui
     cprintf(">>> icmp_tx <<<\n");
     icmp_dump(netif, NULL, dst, (uint8_t*)hdr, msg_len);
 #endif
-    return ip_tx(netif, IP_PROTOCOL_ICMP, (uint8_t*)hdr, msg_len, dst);
+    return ip_tx(netif, NULL, IP_PROTOCOL_ICMP, (uint8_t*)hdr, msg_len, dst);
 }
 
 int icmp_init(void)

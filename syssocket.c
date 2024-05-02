@@ -3,6 +3,7 @@
 
 #include "defs.h"
 #include "file.h"
+#include "net.h"
 #include "proc.h"
 #include "types.h"
 
@@ -120,4 +121,15 @@ int sys_veth(void)
         return -1;
     veth_init(proc1->net_ns, proc2->net_ns);
     return 0;
+}
+
+int sys_addroute(void)
+{
+    ip_addr_t network, netmask, gateway;
+    char const* devname;
+    if (argint(0, (int*)&network) < 0 || argint(1, (int*)&netmask) < 0 || argint(2, (int*)&gateway) < 0 || argstr(3, (char**)&devname) < 0)
+        return -1;
+    struct netdev* dev = netdev_by_name(myproc()->net_ns, devname);
+    struct netif* iface = netdev_get_netif(dev, NETIF_FAMILY_IPV4);
+    return ip_route_add(network & netmask, netmask, gateway, iface, myproc()->net_ns);
 }

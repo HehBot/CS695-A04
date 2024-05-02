@@ -84,6 +84,7 @@ int netdev_register(net_ns_t* net_ns, struct netdev* dev)
         snprintf(dev->name, sizeof(dev->name), "net%d", dev->index);
 
     dev->next = net_ns->devices;
+    dev->net_ns = net_ns;
     net_ns->devices = dev;
 
     cprintf("[net] [%p] netdev_register: <%s>\n", net_ns, dev->name);
@@ -195,7 +196,6 @@ void netinit(void)
 
 void net_virt_intr(void)
 {
-    lo_intr_handle(first_net_ns.lo);
     struct netdev* dev = first_net_ns.devices;
     while (dev != NULL) {
         if (dev->type == NETDEV_TYPE_LOOPBACK)

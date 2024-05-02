@@ -45,5 +45,6 @@
 
 #define SYS_veth 38
 #define SYS_setns 39
+#define SYS_addroute 40
 
 #endif // SYSCALL_H

@@ -5,6 +5,11 @@
 #include "types.h"
 #include "user.h"
 
+#define OUTSIDE_DEV_NAME "net3"
+#define INSIDE_DEV_NAME "net1"
+#define OUTSIDE_IP "192.168.0.1"
+#define INSIDE_IP "192.168.0.2"
+
 static void
 ifup(const char* name)
 {
@@ -67,10 +72,17 @@ void init()
 void client(void)
 {
     ip_addr_t a, n;
-    ip_addr_pton("192.168.0.1", &a);
+    ip_addr_pton(INSIDE_IP, &a);
     ip_addr_pton("255.255.255.0", &n);
     ifset("net1", &a, &n);
     ifup("net1");
+
+    ip_addr_t network, netmask, gateway;
+    ip_addr_pton("192.168.0.0", &network);
+    ip_addr_pton("255.255.0.0", &netmask);
+    ip_addr_pton(OUTSIDE_IP, &gateway);
+
+    addroute(network, netmask, gateway, "net1");
 
     printf(1, "Client net ns:\n");
     if (fork() == 0) {
@@ -93,7 +105,7 @@ void client(void)
     }
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
-    ip_addr_pton("192.168.0.1", &addr.sin_addr);
+    ip_addr_pton(OUTSIDE_IP, &addr.sin_addr);
     addr.sin_port = hton16(7);
     if (connect(soc, (void*)&addr, sizeof(addr)) == -1) {
         printf(2, "connect: failure\n");
@@ -131,10 +143,10 @@ int main()
     veth(getpid(), i2);
 
     ip_addr_t a, n;
-    ip_addr_pton("192.168.0.1", &a);
+    ip_addr_pton(OUTSIDE_IP, &a);
     ip_addr_pton("255.255.255.0", &n);
-    ifset("net3", &a, &n);
-    ifup("net3");
+    ifset(OUTSIDE_DEV_NAME, &a, &n);
+    ifup(OUTSIDE_DEV_NAME);
 
     setns(getpid(), NS_PID);
     if (fork() == 0) {

@@ -40,6 +40,7 @@ int accept(int, struct sockaddr*, int*);
 int recvfrom(int, void*, int, struct sockaddr*, int*);
 int sendto(int, void const*, int, struct sockaddr*, int);
 int veth(int, int);
+int addroute(ip_addr_t, ip_addr_t, ip_addr_t, char const*);
 
 #define NS_PID (1 << 0)
 #define NS_NET (1 << 1)

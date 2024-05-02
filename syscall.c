@@ -118,6 +118,8 @@ extern int sys_cpu_restrict(void);
 extern int sys_veth(void);
 extern int sys_setns(void);
 
+extern int sys_addroute(void);
+
 static int (*syscalls[])(void) = {
     [SYS_fork] = sys_fork,
     [SYS_exit] = sys_exit,
@@ -160,6 +162,7 @@ static int (*syscalls[])(void) = {
     [SYS_cpu_restrict] = sys_cpu_restrict,
     [SYS_veth] = sys_veth,
     [SYS_setns] = sys_setns,
+    [SYS_addroute] = sys_addroute,
 };
 
 void syscall(void)

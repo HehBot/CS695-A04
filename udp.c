@@ -79,7 +79,7 @@ udp_tx(struct netif* iface, uint16_t sport, uint8_t* buf, size_t len, ip_addr_t*
     cprintf(">>> udp_tx <<<\n");
     udp_dump((struct netif*)iface, (uint8_t*)packet, sizeof(struct udp_hdr) + len);
 #endif
-    return ip_tx(iface, IP_PROTOCOL_UDP, (uint8_t*)packet, sizeof(struct udp_hdr) + len, peer);
+    return ip_tx(iface, NULL, IP_PROTOCOL_UDP, (uint8_t*)packet, sizeof(struct udp_hdr) + len, peer);
 }
 
 static void
