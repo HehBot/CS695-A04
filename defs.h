@@ -62,6 +62,7 @@ void stati(struct inode*, struct stat*);
 int writei(struct inode*, char*, uint, uint);
 
 void add_procfs_mount(int);
+void remove_procfs_mount(int);
 
 // ide.c
 void ideinit(void);

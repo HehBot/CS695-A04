@@ -221,6 +221,23 @@ int sys_unlink(void)
         goto bad;
     ilock(ip);
 
+    if (ip->dev == PROCDEV) {
+        if (dp->dev != PROCDEV) {
+            remove_procfs_mount(dp->inum);
+            memset(&de, 0, sizeof(de));
+            if (writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+                panic("unlink: writei");
+            // if (ip->type == T_DIR) {
+            //     dp->nlink--;
+            //     iupdate(dp);
+            // }
+        }
+        iunlockput(dp);
+        iunlockput(ip);
+        end_op();
+        return 0;
+    }
+
     if (ip->nlink < 1)
         panic("unlink: nlink < 1");
     if (ip->type == T_DIR && !isdirempty(ip)) {
@@ -602,7 +619,7 @@ int sys_rename(void)
         if (readi(old_dp, (char*)&de, off, sizeof(de)) != sizeof(de))
             panic("rename: readi");
         memcpy(de.name, newname, DIRSIZ);
-        if (writei(new_dp, (char*)&de, off, sizeof(de)) != sizeof(de))
+        if (writei(old_dp, (char*)&de, off, sizeof(de)) != sizeof(de))
             panic("rename: writei");
 
         iunlockput(old_dp);

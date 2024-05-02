@@ -45,6 +45,16 @@ void add_procfs_mount(int inum)
     panic("mount: no more mount points available");
 }
 
+void remove_procfs_mount(int inum)
+{
+    for (int i = 0; i < MAXPROCFSMOUNT; i++) {
+        if (proc_mountpt_inodes[i] == inum) {
+            proc_mountpt_inodes[i] = 0;
+            return;
+        }
+    }
+}
+
 extern int root_proc_inum;
 int root_proc_blocks[10] = { 0 };
 
