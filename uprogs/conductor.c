@@ -68,7 +68,7 @@ void help()
     printf(1, "conductor help: Display this help message\n");
     printf(1, "conductor init: Initialize the image and containers directories\n");
     printf(1, "conductor run <command> [args]: Run a command in a new container\n");
-    printf(1, "conductor exec <pid> <command> [args]: Execute a command in an existing container with the given init PID\n");
+    printf(1, "conductor exec <target_pid> <command> [args]: Execute a command in an existing container with the given init PID\n");
 }
 
 int main(int argc, char* argv[])
