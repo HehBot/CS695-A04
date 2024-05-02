@@ -305,14 +305,13 @@ int fork(void)
     // Set pids
     np->pid_ns = np->child_pid_ns = pid_ns_get(curproc->child_pid_ns);
 
-    int entering_new_pid_ns = 0, new_pid_ns_init = 0;
+    int entering_new_pid_ns = 0;
     acquire(&np->pid_ns->lock);
     if (np->pid_ns != curproc->pid_ns) {
         // child will be in a different pid ns to parent
         entering_new_pid_ns = 1;
         if (np->pid_ns->next_pid == 1) {
             // child will be init of new ns
-            new_pid_ns_init = 1;
             assert(np->pid_ns->initproc == NULL);
             np->pid_ns->initproc = np;
         }
@@ -346,10 +345,7 @@ int fork(void)
         return -1;
     }
     np->sz = curproc->sz;
-    if (!entering_new_pid_ns || new_pid_ns_init)
-        np->parent = curproc;
-    else
-        np->parent = np->pid_ns->initproc;
+    np->parent = curproc;
     *np->tf = *curproc->tf;
 
     // Clear %eax so that fork returns 0 in the child.
@@ -441,9 +437,9 @@ void exit(void)
     // Pass abandoned children to init.
     for (struct proc* p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
         if (p->parent == curproc) {
-            p->parent = curproc->pid_ns->initproc;
+            p->parent = p->pid_ns->initproc;
             if (p->state == ZOMBIE)
-                wakeup1(curproc->pid_ns->initproc);
+                wakeup1(p->pid_ns->initproc);
         }
     }
 

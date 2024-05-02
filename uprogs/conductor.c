@@ -23,52 +23,14 @@ void int_to_string(int num, char* str)
     }
 }
 
-void cp_dir_without_dots(char* src, char* dest)
-{
-    int fd_src = open(src, O_RDONLY);
-    if (fd_src < 0) {
-        printf(2, "cp: cannot open %s\n", src);
-        exit();
-    }
-
-    struct dirent de;
-    while (read(fd_src, &de, sizeof(de)) == sizeof(de)) {
-        if (de.inum == 0)
-            continue;
-        if (strcmp(de.name, ".") == 0 || strcmp(de.name, "..") == 0 || strcmp(de.name, "image") == 0 || strcmp(de.name, "containers") == 0 || strcmp(de.name, "README") == 0 || strcmp(de.name, "console") == 0 || strcmp(de.name, "proc") == 0) {
-            continue;
-        }
-        if (fork() == 0) {
-            char srcfile[100];
-            strcpy(&srcfile[0], src);
-            srcfile[strlen(src)] = '/';
-            strcpy(&srcfile[strlen(src) + 1], de.name);
-            srcfile[strlen(src) + 1 + strlen(de.name)] = '\0';
-
-            char destfile[100];
-            strcpy(&destfile[0], dest);
-            destfile[strlen(dest)] = '/';
-            strcpy(&destfile[strlen(dest) + 1], de.name);
-            destfile[strlen(dest) + 1 + strlen(de.name)] = '\0';
-
-            printf(1, "%s --> %s\n", srcfile, destfile);
-
-            char* argv[] = { "/cp", srcfile, destfile, NULL };
-            exec(argv[0], argv);
-        }
-        while (wait() > 0)
-            ;
-    }
-    close(fd_src);
-}
-
 void help()
 {
     printf(1, "Usage: \n");
-    printf(1, "conductor help: Display this help message\n");
-    printf(1, "conductor init: Initialize the image and containers directories\n");
-    printf(1, "conductor run <command> [args]: Run a command in a new container\n");
-    printf(1, "conductor exec <target_pid> <command> [args]: Execute a command in an existing container with the given init PID\n");
+    printf(1, "conductor help                               Display this help message\n");
+    printf(1, "conductor init                               Initialize the image and containers directories\n");
+    printf(1, "conductor run <command> [args...]            Run a command in a new container\n");
+    printf(1, "conductor exec <pid> <command> [args...]     Execute a command in an existing container with the given init PID\n");
+    printf(1, "conductor stop <pid>                         Stop a running container\n");
 }
 
 int main(int argc, char* argv[])
@@ -88,8 +50,11 @@ int main(int argc, char* argv[])
         pipe(p);
         char container_path[50] = "/containers/";
 
-        mkdir("/image/sample/temp");
-        cp_dir_without_dots("/image/sample", "/image/sample/temp");
+        if (fork() == 0) {
+            char* argv[] = { "/cp", "/image/sample", "/image/.temp", NULL };
+            exec(argv[0], argv);
+        }
+        wait();
 
         unshare(NS_NET | NS_PID);
 
@@ -98,17 +63,21 @@ int main(int argc, char* argv[])
             read(p[0], &container_path[12], 30);
             chroot(container_path);
             chdir("/");
-            mount_procfs("/");
+            // mount_procfs("/");
             char** args = &argv[2];
             exec(args[0], args);
         }
 
         int_to_string(child_pid, &container_path[strlen(container_path)]);
-        rename("/image/sample/temp", container_path);
+        rename("/image/.temp", container_path);
 
         write(p[1], &container_path[12], 30);
 
         wait();
+
+        char* argv2[] = { "/rm", "-r", container_path, NULL };
+        exec(argv2[0], argv2);
+
     } else if (strcmp(cmd, "exec") == 0) {
         int target_pid = atoi(argv[2]);
         if (setns(target_pid, NS_NET | NS_PID) < 0) {
@@ -128,6 +97,9 @@ int main(int argc, char* argv[])
         }
 
         wait();
+    } else if (strcmp(cmd, "stop") == 0) {
+        int target_pid = atoi(argv[2]);
+        kill(target_pid);
     } else
         help();
     exit();
