@@ -87,7 +87,7 @@ int netdev_register(net_ns_t* net_ns, struct netdev* dev)
     dev->net_ns = net_ns;
     net_ns->devices = dev;
 
-    cprintf("[net] [%p] netdev_register: <%s>\n", net_ns, dev->name);
+    // cprintf("[net] [%p] netdev_register: <%s>\n", net_ns, dev->name);
     return 0;
 }
 

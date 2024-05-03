@@ -80,6 +80,8 @@ int main(int argc, char* argv[])
         }
         close(p[0]);
 
+        printf(1, "[Init PID of container: %d]", child_pid);
+
         int_to_string(child_pid, &container_path[strlen(container_path)]);
         rename("/image/.temp", container_path);
 

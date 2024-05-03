@@ -7,7 +7,7 @@ UPROGS_FULL_PATH = $(UPROGS:%=$(FSROOT)/%)
 ULIB = ulib.a
 
 all: $(UPROGS_FULL_PATH)
-	./prepare_sample_image
+	./prepare_sample_image.sh
 
 $(FSROOT)/forktest: forktest.o ulib.o usys.o
 	# forktest has less library code linked in - needs to be small
