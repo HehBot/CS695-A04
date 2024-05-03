@@ -1,96 +1,55 @@
-xv6-net
+Containers in xv6
 =======
-This project is implement TCP/IP Network Stack on xv6.
+This project implements restricted versions of Linux container primitives and provides a miniature docker-like utility to run containers on xv6.
 
-The network stack uses https://github.com/pandax381/microps
-
-microps is a user-mode TCP/IP stack that I'm developing.
-This project ported it to the xv6 kernel.
-
-![demo](https://github.com/pandax381/xv6-net/blob/net/doc/demo.gif)
-
-## Features
-
-- [x] Network device
-  - [x] PCI
-    - [x] Bus scan
-    - [x] Find device driver
-  - [x] Intel 8254x (e1000) driver
-    - [x] Initialization
-    - [x] Basic operation of RX/TX with DMA
-    - [x] Interrupt trap
-    - [x] Detect interrupt souce (if multiple NICs)
-  - [x] Device abstraction
-    - [x] Define structure for physical device abstraction (struct netdev)
-    - [x] Support multiple link protocols and physical devices
-- [x] Protocols
-  - [x] Ethernet
-  - [x] ARP
-  - [x] IP
-  - [x] ICMP
-  - [x] UDP
-  - [x] TCP
-- [x] Network Interface
-  - [x] Interface abstraction
-    - [x] Define structure for logical interface abstraction (struct netif)
-    - [x] Support multiple address family and logical interfaces
-  - [x] Configuration
-    - [x] ifconfig
-- [x] Socket API
-  - [x] Systemcalls
-    - [x] socket
-    - [x] bind
-    - [x] connect
-    - [x] listen
-    - [x] accept
-    - [x] recv
-    - [x] send
-    - [x] recvfrom
-    - [x] sendto
-  - [x] Socket descriptor (compatible with File descriptor)
-  - [x] Socket address (struct sockaddr)
-
-## Task
-
-- [ ] ARP resolution waiting queue (Currently discards data)
-- [ ] TCP timer (Currently retransmission timer is not working)
-- [ ] DHCP client
-- [ ] DNS stub resolver
+Report link: [report](https://drive.google.com/drive/folders/1ulcNgEvHh1ETs8ws909w-nycYTQ05LBS?usp=sharing)
 
 ## Tutorial
-
-*Build & Run*
+### Running xv6
+1. Clone the repo
 ```
-$ sudo make docker-build
-$ sudo make docker-run
-
-...(xv6-net starts on qemu in the container)...
-
-$ ifconfig net1 172.16.100.2 netmask 255.255.255.0
-$ ifconfig net1 up
-$ tcpechoserver
-Starting TCP Echo Server
-socket: success, soc=3
-bind: success, self=0.0.0.0:7
-waiting for connection...
-
-...(client connection information and received data are output)...
-
-(switch to qemu monitor with Ctrl-a + c and exit by typing `quit`)
+git clone https://github.com/HehBot/CS695-A04
+cd CS695-A04
 ```
 
-*Ping Test (at another terminal)*
+2. Now xv6 can be run either natively or in a Docker container.
+
+- To run natively:
 ```
-$ sudo docker exec -it xv6-net ping 172.16.100.2
+sudo make run
+```
+- To run in a Docker container:
+```
+sudo make docker-build
+sudo make docker-run
 ```
 
-*TCP Test (at another terminal)*
+  This starts up a terminal in xv6.
+
+3. Press `Ctrl-a + x` to exit the xv6 terminal
+
+### Using conductor
+
+1. Once inside xv6 terminal, first execute
 ```
-$ sudo docker exec -it xv6-net nc 172.16.100.2 7
+$ conductor init
 ```
+to setup the containers folder.
 
-## License
+2. Now `conductor run <image> <command> [args...]` can be used to run any command inside a container based on given.
+   
+For example, following command runs ps command inside a contatiner based on sample image which is present by default in images folder.
+```
+$ conductor run sample ps
+```
+![Example image demonstrating conductor run]()
 
-xv6: Under the MIT License. See [LICENSE](./LICENSE) file.
+3. `conductor exec <pid> <command> [args...]` can be used to run a command inside an already running container.
 
-Additional code: Under the MIT License. See header of each source code.
+For example, here a container is created which runs `container_init` which is a command that never ends in background by appending `&` at the end of command. Next it exec `ps` command into that container
+
+![Example image demonstrating conductor exec]()
+
+### Creating custom image
+
+
