@@ -25,6 +25,26 @@ static void itrunc(struct inode*);
 // only one device
 struct superblock sb;
 
+// fs inode functions
+void fs_ipopulate(struct inode* ip);
+void fs_iupdate(struct inode* ip);
+static int fs_readi(struct inode* ip, char* dst, uint off, uint n);
+static int fs_writei(struct inode* ip, char* src, uint off, uint n);
+struct inode_functions fs_i_func = { fs_ipopulate, fs_iupdate, fs_readi, fs_writei };   
+
+// Procfs inode functions
+void procfs_ipopulate(struct inode* ip);
+void procfs_iupdate(struct inode* ip);
+static int procfs_readi(struct inode* ip, char* dst, uint off, uint n);
+static int procfs_writei(struct inode* ip, char* src, uint off, uint n);
+struct inode_functions procfs_i_func = { procfs_ipopulate, procfs_iupdate, procfs_readi, procfs_writei }; 
+
+// Placeholder funcitons
+static int procfs_writei(struct inode* a, char* b, uint c, uint d){
+    return 0;
+}
+void procfs_iupdate(struct inode* a){}
+
 extern struct {
     struct spinlock lock;
     struct proc proc[NPROC];
@@ -305,6 +325,14 @@ iget(uint dev, uint inum, struct inode* parent)
     ip->dev = dev;
     ip->inum = inum;
 
+    if(ip->dev == PROCDEV){
+        ip->i_func = &procfs_i_func;
+    }
+    else if(parent)
+        ip->i_func = parent->i_func;
+    else
+        ip->i_func = &fs_i_func; // fs is the default file system
+
     ip->ref = 1;
     ip->valid = 0;
     release(&icache.lock);
@@ -341,7 +369,7 @@ void fs_ipopulate(struct inode* ip)
     if (ip->type == 0)
         panic("ilock: no type");
 }
-static void procfs_ipopulate(struct inode* ip)
+void procfs_ipopulate(struct inode* ip)
 {
     struct proc* p;
     struct proc* curproc = myproc();
@@ -408,8 +436,8 @@ static void procfs_ipopulate(struct inode* ip)
                     ip->type = T_DIR;
                     break;
                 } else if (ip->inum == p->procfs_nums[1]) {
-                    memmove(bp->data + off, p->name, sizeof(p->name));
-                    off += sizeof(p->name);
+                    memmove(bp->data + off, p->name, strlen(p->name)+1);
+                    off += strlen(p->name)+1;
 
                     ip->type = T_FILE;
                     break;
@@ -423,14 +451,7 @@ static void procfs_ipopulate(struct inode* ip)
 }
 static void ipopulate(struct inode* ip)
 {
-    switch (ip->dev) {
-    case ROOTDEV:
-        fs_ipopulate(ip);
-        break;
-    case PROCDEV:
-        procfs_ipopulate(ip);
-        break;
-    }
+    ip->i_func->ipopulate(ip);
 }
 
 // Lock the given inode.
@@ -617,12 +638,12 @@ static int procfs_readi(struct inode* ip, char* dst, uint off, uint n)
     uint tot, m;
     struct buf* bp;
 
+    ipopulate(ip);
     if (off > ip->size || off + n < off)
         return -1;
     if (off + n > ip->size)
         n = ip->size - off;
 
-    ipopulate(ip);
     for (tot = 0; tot < n; tot += m, off += m, dst += m) {
         bp = bget(ip->dev, ip->addrs[off / BSIZE]);
         m = min(n - tot, BSIZE - off % BSIZE);
@@ -631,15 +652,10 @@ static int procfs_readi(struct inode* ip, char* dst, uint off, uint n)
     }
     return n;
 }
+
 int readi(struct inode* ip, char* dst, uint off, uint n)
 {
-    switch (ip->dev) {
-    case ROOTDEV:
-        return fs_readi(ip, dst, off, n);
-    case PROCDEV:
-        return procfs_readi(ip, dst, off, n);
-    }
-    return -1;
+    return ip->i_func->readi(ip, dst, off, n);
 }
 
 // PAGEBREAK!
@@ -677,23 +693,11 @@ static int fs_writei(struct inode* ip, char* src, uint off, uint n)
 }
 int writei(struct inode* ip, char* src, uint off, uint n)
 {
-    switch (ip->dev) {
-    case ROOTDEV:
-        return fs_writei(ip, src, off, n);
-    case PROCDEV:
-        return 0;
-    }
-    return -1;
+    return ip->i_func->writei(ip, src, off, n);
 }
 void iupdate(struct inode* ip)
 {
-    switch (ip->dev) {
-    case ROOTDEV:
-        fs_iupdate(ip);
-        return;
-    case PROCDEV:
-        return;
-    }
+    ip->i_func->iupdate(ip);
 }
 
 // PAGEBREAK!
